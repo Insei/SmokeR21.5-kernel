@@ -338,32 +338,13 @@ static u64 update_load(int cpu)
 		pcpu->policy->governor_data;
 	u64 now;
 	u64 now_idle;
-	u64 now_iowait;
-	unsigned int delta_idle;
-	unsigned int delta_iowait;
-	unsigned int delta_time;
-	unsigned int io_consecutive;
+	u64 delta_idle;
+	u64 delta_time;
 	u64 active_time;
 
 	now_idle = get_cpu_idle_time(cpu, &now, tunables->io_is_busy);
-	now_iowait = get_cpu_iowait_time_us(cpu, NULL);
-	delta_idle = (unsigned int)(now_idle - pcpu->time_in_idle);
-	delta_iowait = (unsigned int)(now_iowait - pcpu->time_in_iowait);
-	delta_time = (unsigned int)(now - pcpu->time_in_idle_timestamp);
-	io_consecutive = pcpu->io_consecutive;
-
-	if (!tunables->io_is_busy) {
-		if (tunables->io_busy_threshold && delta_iowait)
-			io_consecutive =
-				(io_consecutive < tunables->io_busy_threshold) ?
-				io_consecutive + 1 : io_consecutive;
-		else if (io_consecutive)
-			io_consecutive--;
-
-		if (io_consecutive &&
-				(io_consecutive >= tunables->io_busy_threshold))
-			delta_idle -= delta_iowait;
-	}
+	delta_idle = (now_idle - pcpu->time_in_idle);
+	delta_time = (now - pcpu->time_in_idle_timestamp);
 
 	if (delta_time <= delta_idle)
 		active_time = 0;
@@ -373,9 +354,7 @@ static u64 update_load(int cpu)
 	pcpu->cputime_speedadj += active_time * pcpu->policy->cur;
 
 	pcpu->time_in_idle = now_idle;
-	pcpu->time_in_iowait = now_iowait;
 	pcpu->time_in_idle_timestamp = now;
-	pcpu->io_consecutive = io_consecutive;
 	return now;
 }
 
