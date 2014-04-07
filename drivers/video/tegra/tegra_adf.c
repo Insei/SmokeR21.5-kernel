@@ -39,6 +39,12 @@ struct tegra_adf_flip_data {
 	bool dirty_rect_valid;
 };
 
+struct tegra_adf_flip_data {
+	u32 syncpt_max[DC_N_WINDOWS];
+	__u16 dirty_rect[4];
+	bool dirty_rect_valid;
+};
+
 #define adf_dev_to_tegra(p) \
 	container_of(p, struct tegra_adf_info, base)
 
