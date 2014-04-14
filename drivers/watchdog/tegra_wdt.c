@@ -3,7 +3,7 @@
  *
  * watchdog driver for NVIDIA tegra internal watchdog
  *
- * Copyright (c) 2012-2015, NVIDIA CORPORATION. All rights reserved.
+ * Copyright (c) 2012-2014, NVIDIA CORPORATION. All rights reserved.
  *
  * based on drivers/watchdog/softdog.c and drivers/watchdog/omap_wdt.c
  *
@@ -58,34 +58,21 @@ struct tegra_wdt {
 	struct resource		*res_src;
 	struct resource		*res_wdt;
 	struct resource		*res_int_base;
-	struct resource		*res_pmc;
 	unsigned long		users;
 	void __iomem		*wdt_source;
 	void __iomem		*wdt_timer;
 	void __iomem		*int_base;
-	void __iomem		*pmc_base;
 	int			irq;
 	int			tmrsrc;
 	int			timeout;
 	int			status;
-#if defined(CONFIG_TRUSTED_LITTLE_KERNEL) && \
-	defined(CONFIG_ARCH_TEGRA_12x_SOC) && defined(CONFIG_FIQ_DEBUGGER)
-	struct resource		*res_avp_src;
-	void __iomem		*wdt_avp_source;
-#endif
-
-#if !defined(CONFIG_TRUSTED_FOUNDATIONS) && \
-	defined(CONFIG_ARCH_TEGRA_12x_SOC) && defined(CONFIG_FIQ_DEBUGGER)
-	struct resource         *res_avp_src;
-	void __iomem            *wdt_avp_source;
-#endif
 };
 
 /*
  * For spinlock lockup detection to work, the heartbeat should be 2*lockup
  * for cases where the spinlock disabled irqs.
  */
-static int heartbeat = 80; /* must be greater than MIN_WDT_PERIOD and lower than MAX_WDT_PERIOD */
+static int heartbeat = 120; /* must be greater than MIN_WDT_PERIOD and lower than MAX_WDT_PERIOD */
 
 #if defined(CONFIG_ARCH_TEGRA_2x_SOC)
 
@@ -156,30 +143,12 @@ static irqreturn_t tegra_wdt_interrupt(int irq, void *dev_id)
 #define PMC_RST_STATUS			0x1b4
 
 struct tegra_wdt *tegra_wdt[MAX_NR_CPU_WDT];
-/*
- * In order to generate the stack dump for the CPU which has IRQ off, we must
- * use the FIQ. TEGRA WDT can generate the FIQ if we do not ACK the IRQ.
- */
-bool wdt_nmi_ack_off;
 
 static inline void tegra_wdt_ping(struct tegra_wdt *wdt)
 {
 	writel(WDT_CMD_START_COUNTER, wdt->wdt_source + WDT_CMD);
-#if defined(CONFIG_TRUSTED_LITTLE_KERNEL) && \
-	defined(CONFIG_ARCH_TEGRA_12x_SOC) && defined(CONFIG_FIQ_DEBUGGER)
-	/* Comment out to test FIQ debugger */
-	writel(WDT_CMD_START_COUNTER, wdt->wdt_avp_source + WDT_CMD);
-#endif
-
-#if !defined(CONFIG_TRUSTED_FOUNDATIONS) && \
-	defined(CONFIG_ARCH_TEGRA_12x_SOC) && defined(CONFIG_FIQ_DEBUGGER)
-	if (wdt_nmi_ack_off == false)
-		writel(WDT_CMD_START_COUNTER, wdt->wdt_avp_source + WDT_CMD);
-#endif
-
 }
 
-#if !defined(CONFIG_ARCH_TEGRA_12x_SOC) || !defined(CONFIG_FIQ_DEBUGGER)
 #ifdef CONFIG_TEGRA_FIQ_DEBUGGER
 static void tegra_wdt_int_priority(struct tegra_wdt *wdt)
 {
@@ -191,23 +160,6 @@ static void tegra_wdt_int_priority(struct tegra_wdt *wdt)
 	val &= ~(1 << (INT_WDT_CPU & 31));
 	writel(val, wdt->int_base + ICTLR_IEP_CLASS);
 }
-#endif
-#endif
-
-#if defined(CONFIG_TRUSTED_FOUNDATIONS) || \
-	!defined(CONFIG_ARCH_TEGRA_12x_SOC) || !defined(CONFIG_FIQ_DEBUGGER)
-#ifdef CONFIG_TEGRA_FIQ_DEBUGGER
-static void tegra_wdt_int_priority(struct tegra_wdt *wdt)
-{
-	unsigned val = 0;
-
-	if (!wdt->int_base)
-		return;
-	val = readl(wdt->int_base + ICTLR_IEP_CLASS);
-	val &= ~(1 << (INT_WDT_CPU & 31));
-	writel(val, wdt->int_base + ICTLR_IEP_CLASS);
-}
-#endif
 #endif
 
 static void tegra_wdt_enable(struct tegra_wdt *wdt)
@@ -227,40 +179,11 @@ static void tegra_wdt_enable(struct tegra_wdt *wdt)
 	 */
 	val = wdt->tmrsrc | WDT_CFG_PERIOD | /*WDT_CFG_INT_EN |*/
 		/*WDT_CFG_SYS_RST_EN |*/ WDT_CFG_PMC2CAR_RST_EN;
-
-#if !defined(CONFIG_ARCH_TEGRA_12x_SOC) || !defined(CONFIG_FIQ_DEBUGGER)
 #ifdef CONFIG_TEGRA_FIQ_DEBUGGER
 	val |= WDT_CFG_FIQ_INT_EN;
 #endif
-#endif
-
-#if defined(CONFIG_TRUSTED_FOUNDATIONS) || \
-	!defined(CONFIG_ARCH_TEGRA_12x_SOC) || !defined(CONFIG_FIQ_DEBUGGER)
-#ifdef CONFIG_TEGRA_FIQ_DEBUGGER
-	val |= WDT_CFG_FIQ_INT_EN;
-#endif
-#endif
-
 	writel(val, wdt->wdt_source + WDT_CFG);
 	writel(WDT_CMD_START_COUNTER, wdt->wdt_source + WDT_CMD);
-
-#if !defined(CONFIG_TRUSTED_FOUNDATIONS) && \
-	defined(CONFIG_ARCH_TEGRA_12x_SOC) && defined(CONFIG_FIQ_DEBUGGER)
-	val = wdt->tmrsrc | (WDT_CFG_PERIOD << 1) | /*WDT_CFG_INT_EN |*/
-		/*WDT_CFG_SYS_RST_EN |*/ WDT_CFG_PMC2CAR_RST_EN;
-	writel(val, wdt->wdt_avp_source + WDT_CFG);
-	writel(WDT_CMD_START_COUNTER, wdt->wdt_avp_source + WDT_CMD);
-
-#endif
-
-#if defined(CONFIG_TRUSTED_LITTLE_KERNEL) && \
-	defined(CONFIG_ARCH_TEGRA_12x_SOC) && defined(CONFIG_FIQ_DEBUGGER)
-	val = wdt->tmrsrc | (WDT_CFG_PERIOD << 1) | /*WDT_CFG_INT_EN |*/
-		/*WDT_CFG_SYS_RST_EN |*/ WDT_CFG_PMC2CAR_RST_EN;
-	writel(val, wdt->wdt_avp_source + WDT_CFG);
-	writel(WDT_CMD_START_COUNTER, wdt->wdt_avp_source + WDT_CMD);
-
-#endif
 }
 
 static void tegra_wdt_disable(struct tegra_wdt *wdt)
@@ -268,17 +191,6 @@ static void tegra_wdt_disable(struct tegra_wdt *wdt)
 	writel(WDT_UNLOCK_PATTERN, wdt->wdt_source + WDT_UNLOCK);
 	writel(WDT_CMD_DISABLE_COUNTER, wdt->wdt_source + WDT_CMD);
 
-#if defined(CONFIG_TRUSTED_LITTLE_KERNEL) && \
-	defined(CONFIG_ARCH_TEGRA_12x_SOC) && defined(CONFIG_FIQ_DEBUGGER)
-	writel(WDT_UNLOCK_PATTERN, wdt->wdt_avp_source + WDT_UNLOCK);
-	writel(WDT_CMD_DISABLE_COUNTER, wdt->wdt_avp_source + WDT_CMD);
-#endif
-
-#if !defined(CONFIG_TRUSTED_FOUNDATIONS) && \
-	defined(CONFIG_ARCH_TEGRA_12x_SOC) && defined(CONFIG_FIQ_DEBUGGER)
-	writel(WDT_UNLOCK_PATTERN, wdt->wdt_avp_source + WDT_UNLOCK);
-	writel(WDT_CMD_DISABLE_COUNTER, wdt->wdt_avp_source + WDT_CMD);
-#endif
 	writel(0, wdt->wdt_timer + TIMER_PTV);
 }
 
@@ -297,24 +209,6 @@ static irqreturn_t tegra_wdt_interrupt(int irq, void *dev_id)
 
 	return IRQ_HANDLED;
 }
-
-#if defined(CONFIG_TRUSTED_LITTLE_KERNEL) && \
-	defined(CONFIG_ARCH_TEGRA_12x_SOC) && defined(CONFIG_FIQ_DEBUGGER)
-static irqreturn_t tegra_wdt_avp_interrupt(int irq, void *dev_id)
-{
-	return IRQ_HANDLED;
-}
-#endif
-
-#if !defined(CONFIG_TRUSTED_FOUNDATIONS) && \
-	defined(CONFIG_ARCH_TEGRA_12x_SOC) && defined(CONFIG_FIQ_DEBUGGER)
-static irqreturn_t tegra_wdt_avp_interrupt(int irq, void *dev_id)
-{
-	return IRQ_HANDLED;
-}
-#endif
-
-
 #endif
 
 static int tegra_wdt_notify(struct notifier_block *this,
@@ -337,6 +231,7 @@ static int tegra_wdt_open(struct inode *inode, struct file *file)
 		return -EBUSY;
 
 	wdt->status |= WDT_ENABLED;
+	wdt->timeout = heartbeat;
 	tegra_wdt_enable(wdt);
 	file->private_data = wdt;
 	return nonseekable_open(inode, file);
@@ -346,7 +241,7 @@ static int tegra_wdt_release(struct inode *inode, struct file *file)
 {
 	struct tegra_wdt *wdt = file->private_data;
 
-	if (wdt->status & WDT_ENABLED) {
+	if (wdt->status == WDT_ENABLED) {
 #ifndef CONFIG_WATCHDOG_NOWAYOUT
 		tegra_wdt_disable(wdt);
 		wdt->status = WDT_DISABLED;
@@ -362,9 +257,6 @@ static long tegra_wdt_ioctl(struct file *file, unsigned int cmd,
 	struct tegra_wdt *wdt = file->private_data;
 	static DEFINE_SPINLOCK(lock);
 	int new_timeout;
-#ifndef CONFIG_WATCHDOG_NOWAYOUT
-	int option;
-#endif
 	static const struct watchdog_info ident = {
 		.identity = "Tegra Watchdog",
 		.options = WDIOF_SETTIMEOUT,
@@ -432,7 +324,7 @@ static void tegra_wdt_log_reset_reason(struct platform_device *pdev,
 		struct tegra_wdt *wdt)
 {
 
-#if defined(CONFIG_ARCH_TEGRA_3x_SOC) || defined(CONFIG_ARCH_TEGRA_12x_SOC)
+#if defined(CONFIG_ARCH_TEGRA_3x_SOC) || defined(CONFIG_ARCH_TEGRA_11x_SOC)
 	/*
 	 * There are two pathes to make the WDT reset:
 	 *  (a) WDT -> PMC -> CAR
@@ -454,6 +346,7 @@ static void tegra_wdt_log_reset_reason(struct platform_device *pdev,
 	 *  source. We will not use this path.
 	 */
 	u32 val;
+	void __iomem *pmc_base;
 #define RESET_STR(REASON) "last reset is due to "#REASON"\n"
 	char *reset_reason[] = {
 		RESET_STR(power on reset),
@@ -467,7 +360,8 @@ static void tegra_wdt_log_reset_reason(struct platform_device *pdev,
 	if (pdev->id > 0)
 		return;
 
-	val = readl(wdt->pmc_base + PMC_RST_STATUS) & 0x7;
+	pmc_base = IO_ADDRESS(TEGRA_PMC_BASE);
+	val = readl(pmc_base + PMC_RST_STATUS) & 0x7;
 	if (val >= ARRAY_SIZE(reset_reason))
 		dev_info(&pdev->dev, "last reset value is invalid 0x%x\n", val);
 	else
@@ -493,17 +387,7 @@ static const struct file_operations tegra_wdt_fops = {
 
 static int tegra_wdt_probe(struct platform_device *pdev)
 {
-	struct resource *res_src, *res_wdt, *res_irq, *res_pmc;
-#if defined(CONFIG_TRUSTED_LITTLE_KERNEL) && \
-	defined(CONFIG_ARCH_TEGRA_12x_SOC) && defined(CONFIG_FIQ_DEBUGGER)
-	struct resource *res_avp_src, *res_avp_irq;
-#endif
-
-#if !defined(CONFIG_TRUSTED_FOUNDATIONS) && \
-	defined(CONFIG_ARCH_TEGRA_12x_SOC) && defined(CONFIG_FIQ_DEBUGGER)
-	struct resource *res_avp_src, *res_avp_irq;
-#endif
-
+	struct resource *res_src, *res_wdt, *res_irq;
 	struct resource	*res_int_base = NULL;
 	struct tegra_wdt *wdt;
 	int ret = 0;
@@ -515,61 +399,20 @@ static int tegra_wdt_probe(struct platform_device *pdev)
 
 	res_src = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	res_wdt = platform_get_resource(pdev, IORESOURCE_MEM, 1);
-	res_pmc = platform_get_resource(pdev, IORESOURCE_MEM, 2);
 	res_irq = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
 
-#if defined(CONFIG_TRUSTED_LITTLE_KERNEL) && \
-	defined(CONFIG_ARCH_TEGRA_12x_SOC) && defined(CONFIG_FIQ_DEBUGGER)
-	res_avp_src = platform_get_resource(pdev, IORESOURCE_MEM, 4);
-	res_avp_irq = platform_get_resource(pdev, IORESOURCE_IRQ, 1);
-#endif
-
-#if !defined(CONFIG_TRUSTED_FOUNDATIONS) && \
-	defined(CONFIG_ARCH_TEGRA_12x_SOC) && defined(CONFIG_FIQ_DEBUGGER)
-	res_avp_src = platform_get_resource(pdev, IORESOURCE_MEM, 4);
-	res_avp_irq = platform_get_resource(pdev, IORESOURCE_IRQ, 1);
-#endif
-
-
-#if defined(CONFIG_TRUSTED_LITTLE_KERNEL) && \
-	defined(CONFIG_ARCH_TEGRA_12x_SOC) && defined(CONFIG_FIQ_DEBUGGER)
-	if (!res_src || !res_wdt || !res_avp_src || (!pdev->id && !res_irq) ||
-	    !res_pmc) {
-#else
-
-#if !defined(CONFIG_TRUSTED_FOUNDATIONS) && \
-	defined(CONFIG_ARCH_TEGRA_12x_SOC) && defined(CONFIG_FIQ_DEBUGGER)
-	if (!res_src || !res_wdt || !res_avp_src || (!pdev->id && !res_irq)) {
-#else
-	if (!res_src || !res_wdt || (!pdev->id && !res_irq) || !res_pmc) {
-#endif
-
-#endif
+	if (!res_src || !res_wdt || (!pdev->id && !res_irq)) {
 		dev_err(&pdev->dev, "incorrect resources\n");
 		return -ENOENT;
 	}
 
-#if !defined(CONFIG_ARCH_TEGRA_12x_SOC) || !defined(CONFIG_FIQ_DEBUGGER)
 #ifdef CONFIG_TEGRA_FIQ_DEBUGGER
-	res_int_base = platform_get_resource(pdev, IORESOURCE_MEM, 3);
+	res_int_base = platform_get_resource(pdev, IORESOURCE_MEM, 2);
 	if (!pdev->id && !res_int_base) {
 		dev_err(&pdev->dev, "FIQ_DBG: INT base not defined\n");
 		return -ENOENT;
 	}
 #endif
-#endif
-
-#if defined(CONFIG_TRUSTED_FOUNDATIONS) || \
-	!defined(CONFIG_ARCH_TEGRA_12x_SOC) || !defined(CONFIG_FIQ_DEBUGGER)
-#ifdef CONFIG_TEGRA_FIQ_DEBUGGER
-	res_int_base = platform_get_resource(pdev, IORESOURCE_MEM, 3);
-	if (!pdev->id && !res_int_base) {
-		dev_err(&pdev->dev, "FIQ_DBG: INT base not defined\n");
-		return -ENOENT;
-	}
-#endif
-#endif
-
 
 	if (pdev->id == -1 && !res_irq) {
 		dev_err(&pdev->dev, "incorrect irq\n");
@@ -606,36 +449,8 @@ static int tegra_wdt_probe(struct platform_device *pdev)
 				     pdev->name);
 	res_wdt = request_mem_region(res_wdt->start, resource_size(res_wdt),
 				     pdev->name);
-	res_pmc = request_mem_region(res_pmc->start, resource_size(res_pmc),
-				     pdev->name);
 
-#if defined(CONFIG_TRUSTED_LITTLE_KERNEL) && \
-	defined(CONFIG_ARCH_TEGRA_12x_SOC) && defined(CONFIG_FIQ_DEBUGGER)
-	res_avp_src = request_mem_region(res_avp_src->start,
-					 resource_size(res_avp_src),
-					 pdev->name);
-#endif
-
-#if !defined(CONFIG_TRUSTED_FOUNDATIONS) && \
-	defined(CONFIG_ARCH_TEGRA_12x_SOC) && defined(CONFIG_FIQ_DEBUGGER)
-	res_avp_src = request_mem_region(res_avp_src->start,
-					 resource_size(res_avp_src),
-					 pdev->name);
-#endif
-
-#if defined(CONFIG_TRUSTED_LITTLE_KERNEL) && \
-	defined(CONFIG_ARCH_TEGRA_12x_SOC) && defined(CONFIG_FIQ_DEBUGGER)
-	if (!res_src || !res_wdt || !res_avp_src || !res_pmc) {
-#else
-
-#if !defined(CONFIG_TRUSTED_FOUNDATIONS) && \
-	defined(CONFIG_ARCH_TEGRA_12x_SOC) && defined(CONFIG_FIQ_DEBUGGER)
-	if (!res_src || !res_wdt || !res_avp_src || !res_pmc) {
-#else
-	if (!res_src || !res_wdt || !res_pmc) {
-#endif
-
-#endif
+	if (!res_src || !res_wdt) {
 		dev_err(&pdev->dev, "unable to request memory resources\n");
 		ret = -EBUSY;
 		goto fail;
@@ -643,37 +458,9 @@ static int tegra_wdt_probe(struct platform_device *pdev)
 
 	wdt->wdt_source = ioremap(res_src->start, resource_size(res_src));
 	wdt->wdt_timer = ioremap(res_wdt->start, resource_size(res_wdt));
-	wdt->pmc_base = ioremap(res_pmc->start, resource_size(res_pmc));
-
-#if defined(CONFIG_TRUSTED_LITTLE_KERNEL) && \
-	defined(CONFIG_ARCH_TEGRA_12x_SOC) && defined(CONFIG_FIQ_DEBUGGER)
-	wdt->wdt_avp_source = ioremap(res_avp_src->start,
-				      resource_size(res_avp_src));
-#endif
-
-#if !defined(CONFIG_TRUSTED_FOUNDATIONS) && \
-	defined(CONFIG_ARCH_TEGRA_12x_SOC) && defined(CONFIG_FIQ_DEBUGGER)
-	wdt->wdt_avp_source = ioremap(res_avp_src->start,
-				      resource_size(res_avp_src));
-#endif
-
 	/* tmrsrc will be used to set WDT_CFG */
 	wdt->tmrsrc = (TMR_SRC_START + pdev->id) % 10;
-
-#if defined(CONFIG_TRUSTED_LITTLE_KERNEL) && \
-	defined(CONFIG_ARCH_TEGRA_12x_SOC) && defined(CONFIG_FIQ_DEBUGGER)
-	if (!wdt->wdt_source || !wdt->wdt_timer || !wdt->wdt_avp_source ||
-	    !wdt->pmc_base) {
-#else
-#if !defined(CONFIG_TRUSTED_FOUNDATIONS) && \
-	defined(CONFIG_ARCH_TEGRA_12x_SOC) && defined(CONFIG_FIQ_DEBUGGER)
-	if (!wdt->wdt_source || !wdt->wdt_timer || !wdt->wdt_avp_source ||
-	    !wdt->pmc_base) {
-#else
-	if (!wdt->wdt_source || !wdt->wdt_timer || !wdt->pmc_base) {
-#endif
-
-#endif
+	if (!wdt->wdt_source || !wdt->wdt_timer) {
 		dev_err(&pdev->dev, "unable to map registers\n");
 		ret = -ENOMEM;
 		goto fail;
@@ -685,7 +472,6 @@ static int tegra_wdt_probe(struct platform_device *pdev)
 	writel(TIMER_PCR_INTR, wdt->wdt_timer + TIMER_PCR);
 
 	if (res_irq != NULL) {
-#if !defined(CONFIG_ARCH_TEGRA_12x_SOC) || !defined(CONFIG_FIQ_DEBUGGER)
 #ifdef CONFIG_TEGRA_FIQ_DEBUGGER
 		/* FIQ debugger enables FIQ priority for INT_WDT_CPU.
 		 * But that will disable IRQ on WDT expiration.
@@ -703,29 +489,6 @@ static int tegra_wdt_probe(struct platform_device *pdev)
 		if (!wdt->int_base)
 			goto fail;
 		tegra_wdt_int_priority(wdt);
-#endif
-#endif
-
-#if defined(CONFIG_TRUSTED_FOUNDATIONS) || \
-	!defined(CONFIG_ARCH_TEGRA_12x_SOC) || !defined(CONFIG_FIQ_DEBUGGER)
-#ifdef CONFIG_TEGRA_FIQ_DEBUGGER
-		/* FIQ debugger enables FIQ priority for INT_WDT_CPU.
-		 * But that will disable IRQ on WDT expiration.
-		 * Reset the priority back to IRQ on INT_WDT_CPU so
-		 * that tegra_wdt_interrupt gets its chance to restart the
-		 * counter before expiration.
-		 */
-		res_int_base = request_mem_region(res_int_base->start,
-						  resource_size(res_int_base),
-						  pdev->name);
-		if (!res_int_base)
-			goto fail;
-		wdt->int_base = ioremap(res_int_base->start,
-					resource_size(res_int_base));
-		if (!wdt->int_base)
-			goto fail;
-		tegra_wdt_int_priority(wdt);
-#endif
 #endif
 		ret = request_irq(res_irq->start, tegra_wdt_interrupt,
 				  IRQF_DISABLED, dev_name(&pdev->dev), wdt);
@@ -733,43 +496,12 @@ static int tegra_wdt_probe(struct platform_device *pdev)
 			dev_err(&pdev->dev, "unable to configure IRQ\n");
 			goto fail;
 		}
-
-#if defined(CONFIG_TRUSTED_LITTLE_KERNEL) && \
-	defined(CONFIG_ARCH_TEGRA_12x_SOC) && defined(CONFIG_FIQ_DEBUGGER)
-		ret = request_irq(res_avp_irq->start, tegra_wdt_avp_interrupt,
-				IRQF_DISABLED, "avp_wdt", wdt);
-		if (ret) {
-			dev_err(&pdev->dev, "unable to configure WDT AVP IRQ\n");
-			goto fail;
-		}
-#endif
-
-#if !defined(CONFIG_TRUSTED_FOUNDATIONS) && \
-	defined(CONFIG_ARCH_TEGRA_12x_SOC) && defined(CONFIG_FIQ_DEBUGGER)
-		ret = request_irq(res_avp_irq->start, tegra_wdt_avp_interrupt,
-				IRQF_DISABLED, "avp_wdt", wdt);
-		if (ret) {
-			dev_err(&pdev->dev, "unable to configure WDT AVP IRQ\n");
-			goto fail;
-		}
-#endif
 		wdt->irq = res_irq->start;
 	}
 
 	wdt->res_src = res_src;
-
-#if defined(CONFIG_TRUSTED_LITTLE_KERNEL) && \
-	defined(CONFIG_ARCH_TEGRA_12x_SOC) && defined(CONFIG_FIQ_DEBUGGER)
-	wdt->res_avp_src = res_avp_src;
-#endif
-#if !defined(CONFIG_TRUSTED_FOUNDATIONS) && \
-	defined(CONFIG_ARCH_TEGRA_12x_SOC) && defined(CONFIG_FIQ_DEBUGGER)
-	wdt->res_avp_src = res_avp_src;
-#endif
-
 	wdt->res_wdt = res_wdt;
 	wdt->res_int_base = res_int_base;
-	wdt->res_pmc = res_pmc;
 	wdt->status = WDT_DISABLED;
 
 	ret = register_reboot_notifier(&wdt->notifier);
@@ -798,23 +530,6 @@ static int tegra_wdt_probe(struct platform_device *pdev)
 		val = readl(wdt->wdt_source + WDT_CFG);
 		val |= WDT_CFG_INT_EN;
 		writel(val, wdt->wdt_source + WDT_CFG);
-
-#if defined(CONFIG_TRUSTED_LITTLE_KERNEL) && \
-	defined(CONFIG_ARCH_TEGRA_12x_SOC) && defined(CONFIG_FIQ_DEBUGGER)
-		val = readl(wdt->wdt_avp_source + WDT_CFG);
-		val |= WDT_CFG_INT_EN;
-		writel(val, wdt->wdt_avp_source + WDT_CFG);
-
-#endif
-
-#if !defined(CONFIG_TRUSTED_FOUNDATIONS) && \
-	defined(CONFIG_ARCH_TEGRA_12x_SOC) && defined(CONFIG_FIQ_DEBUGGER)
-		val = readl(wdt->wdt_avp_source + WDT_CFG);
-		val |= WDT_CFG_INT_EN;
-		writel(val, wdt->wdt_avp_source + WDT_CFG);
-
-#endif
-
 		pr_info("WDT heartbeat enabled on probe\n");
 	}
 #endif
@@ -831,8 +546,6 @@ fail:
 		iounmap(wdt->wdt_timer);
 	if (wdt->int_base)
 		iounmap(wdt->int_base);
-	if (wdt->pmc_base)
-		iounmap(wdt->pmc_base);
 	if (res_src)
 		release_mem_region(res_src->start, resource_size(res_src));
 	if (res_wdt)
@@ -840,26 +553,6 @@ fail:
 	if (res_int_base)
 		release_mem_region(res_int_base->start,
 					resource_size(res_int_base));
-	if (res_pmc)
-		release_mem_region(res_pmc->start, resource_size(res_pmc));
-
-#if defined(CONFIG_TRUSTED_LITTLE_KERNEL) && \
-	defined(CONFIG_ARCH_TEGRA_12x_SOC) && defined(CONFIG_FIQ_DEBUGGER)
-	if (wdt->wdt_avp_source)
-		iounmap(wdt->wdt_avp_source);
-	if (res_avp_src)
-		release_mem_region(res_avp_src->start,
-				   resource_size(res_avp_src));
-#endif
-
-#if !defined(CONFIG_TRUSTED_FOUNDATIONS) && \
-	defined(CONFIG_ARCH_TEGRA_12x_SOC) && defined(CONFIG_FIQ_DEBUGGER)
-	if (wdt->wdt_avp_source)
-		iounmap(wdt->wdt_avp_source);
-	if (res_avp_src)
-		release_mem_region(res_avp_src->start,
-				   resource_size(res_avp_src));
-#endif
 	kfree(wdt);
 	return ret;
 }
@@ -875,42 +568,14 @@ static int tegra_wdt_remove(struct platform_device *pdev)
 	if (wdt->irq != -1)
 		free_irq(wdt->irq, wdt);
 	iounmap(wdt->wdt_source);
-
-#if defined(CONFIG_TRUSTED_LITTLE_KERNEL) && \
-	defined(CONFIG_ARCH_TEGRA_12x_SOC) && defined(CONFIG_FIQ_DEBUGGER)
-	iounmap(wdt->wdt_avp_source);
-#endif
-
-#if !defined(CONFIG_TRUSTED_FOUNDATIONS) && \
-	defined(CONFIG_ARCH_TEGRA_12x_SOC) && defined(CONFIG_FIQ_DEBUGGER)
-	iounmap(wdt->wdt_avp_source);
-#endif
 	iounmap(wdt->wdt_timer);
 	if (wdt->int_base)
 		iounmap(wdt->int_base);
-	if (wdt->pmc_base)
-		iounmap(wdt->pmc_base);
 	release_mem_region(wdt->res_src->start, resource_size(wdt->res_src));
-
-#if defined(CONFIG_TRUSTED_LITTLE_KERNEL) && \
-	defined(CONFIG_ARCH_TEGRA_12x_SOC) && defined(CONFIG_FIQ_DEBUGGER)
-	release_mem_region(wdt->res_avp_src->start,
-			   resource_size(wdt->res_avp_src));
-#endif
-
-#if !defined(CONFIG_TRUSTED_FOUNDATIONS) && \
-	defined(CONFIG_ARCH_TEGRA_12x_SOC) && defined(CONFIG_FIQ_DEBUGGER)
-	release_mem_region(wdt->res_avp_src->start,
-			   resource_size(wdt->res_avp_src));
-#endif
-
 	release_mem_region(wdt->res_wdt->start, resource_size(wdt->res_wdt));
 	if (wdt->res_int_base)
 		release_mem_region(wdt->res_int_base->start,
 					resource_size(wdt->res_int_base));
-	if (wdt->res_pmc)
-		release_mem_region(wdt->res_pmc->start,
-					resource_size(wdt->res_pmc));
 	kfree(wdt);
 	platform_set_drvdata(pdev, NULL);
 	return 0;
@@ -939,21 +604,6 @@ static int tegra_wdt_resume(struct platform_device *pdev)
 		val = readl(wdt->wdt_source + WDT_CFG);
 		val |= WDT_CFG_INT_EN;
 		writel(val, wdt->wdt_source + WDT_CFG);
-
-#if defined(CONFIG_TRUSTED_LITTLE_KERNEL) && \
-	defined(CONFIG_ARCH_TEGRA_12x_SOC) && defined(CONFIG_FIQ_DEBUGGER)
-		val = readl(wdt->wdt_avp_source + WDT_CFG);
-		val |= WDT_CFG_INT_EN;
-		writel(val, wdt->wdt_avp_source + WDT_CFG);
-#endif
-
-#if !defined(CONFIG_TRUSTED_FOUNDATIONS) && \
-	defined(CONFIG_ARCH_TEGRA_12x_SOC) && defined(CONFIG_FIQ_DEBUGGER)
-		val = readl(wdt->wdt_avp_source + WDT_CFG);
-		val |= WDT_CFG_INT_EN;
-		writel(val, wdt->wdt_avp_source + WDT_CFG);
-#endif
-
 		pr_info("WDT heartbeat enabled on probe\n");
 	}
 #endif
