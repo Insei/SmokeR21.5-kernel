@@ -388,7 +388,7 @@ static struct seccomp_filter *seccomp_prepare_filter(struct sock_fprog *fprog)
 	 * This avoids scenarios where unprivileged tasks can affect the
 	 * behavior of privileged children.
 	 */
-	if (!current->no_new_privs &&
+	if (!task_no_new_privs(current) &&
 	    security_capable_noaudit(current_cred(), current_user_ns(),
 				     CAP_SYS_ADMIN) != 0)
 		return ERR_PTR(-EACCES);
@@ -414,23 +414,7 @@ static struct seccomp_filter *seccomp_prepare_filter(struct sock_fprog *fprog)
 	/* Check and rewrite the fprog for seccomp use */
 	ret = seccomp_check_filter(filter->insns, filter->len);
 	if (ret)
-		goto free_prog;
-
-	/* Allocate a new seccomp_filter */
-	ret = -ENOMEM;
-	filter = kzalloc(sizeof(struct seccomp_filter) +
-			 sizeof(struct sock_filter_int) * new_len,
-			 GFP_KERNEL|__GFP_NOWARN);
-	if (!filter)
-		goto free_prog;
-
-	ret = sk_convert_filter(fp, fprog->len, filter->insnsi, &new_len);
-	if (ret)
-		goto free_filter;
-	kfree(fp);
-
-	atomic_set(&filter->usage, 1);
-	filter->len = new_len;
+		goto fail;
 
 	return filter;
 
