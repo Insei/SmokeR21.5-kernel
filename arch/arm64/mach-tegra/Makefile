@@ -28,6 +28,8 @@ obj-y					+= panel-p-wuxga-10-1.o
 obj-y					+= panel-s-wqxga-10-1.o
 obj-y					+= panel-a-1200-800-8-0.o
 obj-y					+= panel-a-1200-1920-8-0.o
+obj-y					+= panel-a-edp-1080p-14-0.o
+obj-y					+= panel-i-edp-1080p-11-6.o
 
 obj-${CONFIG_MACH_LOKI}               += board-loki-power.o
 obj-${CONFIG_MACH_LOKI}               += board-loki-pinmux.o
@@ -55,14 +57,12 @@ obj-${CONFIG_MACH_T132REF}              += board-t132ref-tn8-power.o
 obj-${CONFIG_MACH_T132REF}              += board-t132ref-sysedp.o
 obj-${CONFIG_MACH_T132REF}              += board-t132ref-tn8-sysedp.o
 obj-${CONFIG_MACH_T132REF}              += panel-a-1080p-11-6.o
-obj-${CONFIG_MACH_T132REF}              += panel-a-edp-1080p-14-0.o
 obj-${CONFIG_MACH_T132REF}              += panel-a-1080p-14-0.o
 obj-${CONFIG_MACH_T132REF}              += panel-c-lvds-1366-14.o
 obj-${CONFIG_MACH_T132REF}              += panel-lgd-wxga-7-0.o
 obj-${CONFIG_MACH_T132REF}              += panel-p-wuxga-10-1.o
 obj-${CONFIG_MACH_T132REF}              += panel-s-edp-uhdtv-15-6.o
 obj-${CONFIG_MACH_T132REF}              += panel-s-edp-wqxgap-15-6.o
-obj-${CONFIG_MACH_T132REF}              += panel-i-edp-1080p-11-6.o
 
 
 obj-y                                   += board-touch-maxim_sti-spi.o
