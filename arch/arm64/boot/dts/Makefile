@@ -28,8 +28,4 @@ targets += $(DTB_LIST)
 
 dtbs: $(addprefix $(obj)/, $(DTB_LIST))
 
-DTC_FLAGS := -i $(srctree)/arch/arm/boot/dts
-
-DTCCPP_FLAGS := -I$(srctree)/arch/arm/boot/dts
-
-clean-files := *.dtb
+clean-files := dts/*.dtb *.dtb
