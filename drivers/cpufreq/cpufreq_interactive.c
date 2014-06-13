@@ -393,6 +393,7 @@ static void cpufreq_interactive_timer(unsigned long data)
 	unsigned int loadadjfreq;
 	unsigned int index;
 	unsigned long flags;
+	bool boosted;
 
 	if (!down_read_trylock(&pcpu->enable_sem))
 		return;
@@ -411,16 +412,23 @@ static void cpufreq_interactive_timer(unsigned long data)
 	spin_lock_irqsave(&pcpu->target_freq_lock, flags);
 	do_div(cputime_speedadj, delta_time);
 	loadadjfreq = (unsigned int)cputime_speedadj * 100;
-	cpu_load = loadadjfreq / pcpu->policy->cur;
-	tunables->boosted = tunables->boost_val || now < tunables->boostpulse_endtime;
+	cpu_load = loadadjfreq / pcpu->target_freq;
+	boosted = tunables->boost_val || now < tunables->boostpulse_endtime;
 
-	new_freq = choose_freq(pcpu, loadadjfreq);
-	if (cpu_load >= tunables->go_hispeed_load || tunables->boosted) {
-		new_freq = max(new_freq, tunables->hispeed_freq);
-		if (pcpu->target_freq < tunables->hispeed_freq &&
-				tunables->boost_factor)
-			new_freq = min((pcpu->target_freq
-					* tunables->boost_factor), tunables->hispeed_freq);
+	if (cpu_load >= tunables->go_hispeed_load || boosted) {
+		if (pcpu->target_freq < tunables->hispeed_freq) {
+			new_freq = tunables->hispeed_freq;
+		} else {
+			new_freq = choose_freq(pcpu, loadadjfreq);
+
+			if (new_freq < tunables->hispeed_freq)
+				new_freq = tunables->hispeed_freq;
+		}
+	} else {
+		new_freq = choose_freq(pcpu, loadadjfreq);
+		if (new_freq > tunables->hispeed_freq &&
+				pcpu->target_freq < tunables->hispeed_freq)
+			new_freq = tunables->hispeed_freq;
 	}
 
 	if (pcpu->target_freq >= tunables->hispeed_freq &&
