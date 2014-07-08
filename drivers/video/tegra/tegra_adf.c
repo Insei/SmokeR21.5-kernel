@@ -1161,9 +1161,15 @@ int tegra_adf_process_bandwidth_renegotiate(struct tegra_adf_info *adf_info,
 
 	event.base.type = TEGRA_ADF_EVENT_BANDWIDTH_RENEGOTIATE;
 	event.base.length = sizeof(event);
-	event.total_bw = bw->total_bw;
-	event.avail_bw = bw->avail_bw;
-	event.resvd_bw = bw->resvd_bw;
+	if (bw == NULL) {
+		event.total_bw = 0;
+		event.avail_bw = 0;
+		event.resvd_bw = 0;
+	} else {
+		event.total_bw = bw->total_bw;
+		event.avail_bw = bw->avail_bw;
+		event.resvd_bw = bw->resvd_bw;
+	}
 	return adf_event_notify(&adf_info->base.base, &event.base);
 }
 
