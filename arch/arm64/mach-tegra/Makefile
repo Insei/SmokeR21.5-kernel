@@ -30,6 +30,8 @@ obj-y					+= panel-a-1200-800-8-0.o
 obj-y					+= panel-a-1200-1920-8-0.o
 obj-y					+= panel-a-edp-1080p-14-0.o
 obj-y					+= panel-i-edp-1080p-11-6.o
+obj-y					+= panel-c-lvds-1366-14.o
+obj-y					+= panel-a-1080p-14-0.o
 
 obj-${CONFIG_MACH_LOKI}               += board-loki-power.o
 obj-${CONFIG_MACH_LOKI}               += board-loki-pinmux.o
