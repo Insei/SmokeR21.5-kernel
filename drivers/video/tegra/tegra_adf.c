@@ -15,6 +15,7 @@
  *
  */
 
+#include <linux/memblock.h>
 #include <linux/gfp.h>
 #include <media/videobuf2-dma-contig.h>
 #include <video/adf.h>
@@ -30,7 +31,14 @@ struct tegra_adf_info {
 	struct adf_interface		intf;
 	struct adf_overlay_engine	eng;
 	struct tegra_dc			*dc;
+	struct tegra_fb_data		*fb_data;
 	void				*vb2_dma_conf;
+};
+
+struct tegra_adf_flip_data {
+	u32 syncpt_max[DC_N_WINDOWS];
+	__u16 dirty_rect[4];
+	bool dirty_rect_valid;
 };
 
 #define adf_dev_to_tegra(p) \
@@ -804,6 +812,19 @@ static int tegra_adf_intf_blank(struct adf_interface *intf, u8 state)
 	default:
 		return -ENOTTY;
 	}
+
+#if IS_ENABLED(CONFIG_ADF_TEGRA_FBDEV)
+	if (intf->flags & ADF_INTF_FLAG_PRIMARY) {
+		struct fb_event event;
+		int fb_state = tegra_adf_dpms_to_fb_blank(state);
+
+		event.info = adf_info->fbdev.info;
+		event.data = &fb_state;
+		fb_notifier_call_chain(FB_EVENT_BLANK, &event);
+	}
+#endif
+
+	return 0;
 }
 
 static int tegra_adf_intf_alloc_simple_buffer(struct adf_interface *intf,
@@ -828,11 +849,16 @@ static int tegra_adf_intf_alloc_simple_buffer(struct adf_interface *intf,
 
 	*offset = 0;
 	*pitch = ALIGN(w * adf_format_bpp(format) / 8, 64);
-	*dma_buf = nvmap_alloc_dmabuf(h * *pitch, 0,
-			NVMAP_HANDLE_WRITE_COMBINE | NVMAP_HANDLE_ZEROED_PAGES,
-			0);
-	if (IS_ERR(*dma_buf))
-		return PTR_ERR(*dma_buf);
+
+	vb2_buf = mem_ops->alloc(adf_info->vb2_dma_conf,
+				 h * *pitch, __GFP_HIGHMEM);
+	if (IS_ERR(vb2_buf))
+		return PTR_ERR(vb2_buf);
+
+	*dma_buf = mem_ops->get_dmabuf(vb2_buf);
+	mem_ops->put(vb2_buf);
+	if (!*dma_buf)
+		return -ENOMEM;
 
 	return 0;
 }
