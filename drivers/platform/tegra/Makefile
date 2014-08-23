@@ -57,10 +57,8 @@ obj-$(CONFIG_ARCH_TEGRA_12x_SOC)        += powergate-t12x.o
 obj-y += dvfs.o
 obj-$(CONFIG_ARCH_TEGRA_13x_SOC) += tegra13_dvfs.o
 obj-$(CONFIG_CPU_FREQ)                  += cpu-tegra.o
-ifeq ($(CONFIG_TEGRA_AUTO_HOTPLUG),y)
 ifeq ($(CONFIG_TEGRA_CPUQUIET),y)
 obj-$(CONFIG_ARCH_TEGRA_13x_SOC)         += cpuquiet.o
-endif
 endif
 ifeq ($(CONFIG_TEGRA_THERMAL_THROTTLE),y)
 obj-$(CONFIG_ARCH_TEGRA_13x_SOC)        += tegra3_throttle.o
