@@ -98,9 +98,6 @@ obj-$(CONFIG_SMP)                       += platsmp.o
 obj-y                                   += reset.o
 obj-y                                   += headsmp.o
 obj-$(CONFIG_CPU_FREQ)                  += cpu-tegra.o
-ifeq ($(CONFIG_TEGRA_CPUQUIET),y)
-obj-$(CONFIG_ARCH_TEGRA_12x_SOC)        += cpuquiet.o
-endif
 ifeq ($(CONFIG_TEGRA_SOCTHERM),y)
 obj-$(CONFIG_ARCH_TEGRA_12x_SOC)        += tegra11_soctherm.o
 endif
