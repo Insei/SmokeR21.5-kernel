@@ -176,4 +176,6 @@ source "drivers/gpu/nvgpu/Kconfig"
 
 source "drivers/tspdrv/Kconfig"
 
+source "drivers/android/Kconfig"
+
 endmenu
