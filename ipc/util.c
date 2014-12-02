@@ -510,9 +510,7 @@ void *ipc_rcu_alloc(int size)
 
 int ipc_rcu_getref(void *ptr)
 {
-	struct ipc_rcu *p = ((struct ipc_rcu *)ptr) - 1;
-
-	return atomic_inc_not_zero(&p->refcount);
+	return atomic_inc_not_zero(&container_of(ptr, struct ipc_rcu, data)->refcount);
 }
 
 void ipc_rcu_putref(void *ptr, void (*func)(struct rcu_head *head))
