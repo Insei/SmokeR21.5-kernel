@@ -18,6 +18,7 @@
 
 #include <linux/sysedp.h>
 #define WLAN_PLAT_NODFS_FLAG	0x01
+#define WLAN_PLAT_AP_FLAG	0x02
 
 struct wifi_platform_data {
 	int (*set_power)(int val);
