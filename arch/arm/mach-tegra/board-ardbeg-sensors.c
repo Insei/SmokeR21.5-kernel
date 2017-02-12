@@ -442,9 +442,8 @@ static struct thermal_zone_params board_tzp = {
 static struct throttle_table cpu_throttle_table[] = {
 	/* CPU_THROT_LOW cannot be used by other than CPU */
 	/*      CPU,    GPU,  C2BUS,  C3BUS,   SCLK,    EMC   */
-	{ { 2295000, NO_CAP, NO_CAP, NO_CAP, NO_CAP, NO_CAP } },
-	{ { 2269500, NO_CAP, NO_CAP, NO_CAP, NO_CAP, NO_CAP } },
-	{ { 2244000, NO_CAP, NO_CAP, NO_CAP, NO_CAP, NO_CAP } },
+	{ { 2499000, NO_CAP, NO_CAP, NO_CAP, NO_CAP, NO_CAP } },
+	{ { 2397000, NO_CAP, NO_CAP, NO_CAP, NO_CAP, NO_CAP } },
 	{ { 2218500, NO_CAP, NO_CAP, NO_CAP, NO_CAP, NO_CAP } },
 	{ { 2193000, NO_CAP, NO_CAP, NO_CAP, NO_CAP, NO_CAP } },
 	{ { 2167500, NO_CAP, NO_CAP, NO_CAP, NO_CAP, NO_CAP } },
@@ -535,9 +534,11 @@ static struct balanced_throttle cpu_throttle = {
 static struct throttle_table gpu_throttle_table[] = {
 	/* CPU_THROT_LOW cannot be used by other than CPU */
 	/*      CPU,    GPU,  C2BUS,  C3BUS,   SCLK,    EMC   */
-	{ { 2295000, 782800, 480000, 756000, 384000, 924000 } },
-	{ { 2269500, 772200, 480000, 756000, 384000, 924000 } },
-	{ { 2244000, 761600, 480000, 756000, 384000, 924000 } },
+	{ { 2499000, 804000, 480000, 756000, 384000, 924000 } },
+	{ { 2397000, 793400, 480000, 756000, 384000, 924000 } },
+	{ { 2218500, 782800, 480000, 756000, 384000, 924000 } },
+	{ { 2218500, 772200, 480000, 756000, 384000, 924000 } },
+	{ { 2218000, 761600, 480000, 756000, 384000, 924000 } },
 	{ { 2218500, 751100, 480000, 756000, 384000, 924000 } },
 	{ { 2193000, 740500, 480000, 756000, 384000, 924000 } },
 	{ { 2167500, 729900, 480000, 756000, 384000, 924000 } },
