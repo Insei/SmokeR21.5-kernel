@@ -160,12 +160,24 @@ extern struct fb_videomode tegra_dc_vga_mode;
 			_DSI_CMD_SHORT(di, p0, p1, TEGRA_DSI_LINK0,\
 				TEGRA_DSI_PACKET_VIDEO_VBLANK_CMD, club)
 
+#define DSI_CMD_VBLANK_SHORT_LINK(di, p0, p1, lnk_id) \
+			_DSI_CMD_SHORT(di, p0, p1, lnk_id,\
+				TEGRA_DSI_PACKET_VIDEO_VBLANK_CMD)
+
+#define DSI_CMD_VBLANK_SHORT_BOTH(di, p0, p1)	\
+		DSI_CMD_VBLANK_SHORT_LINK(di, p0, p1, TEGRA_DSI_LINK0), \
+		DSI_CMD_VBLANK_SHORT_LINK(di, p0, p1, TEGRA_DSI_LINK1)				
+
 #define DSI_CMD_SHORT_LINK(di, p0, p1, lnk_id) \
 			_DSI_CMD_SHORT(di, p0, p1, lnk_id,\
 				TEGRA_DSI_PACKET_CMD, CMD_NOT_CLUBBED)
 
 #define DSI_CMD_SHORT(di, p0, p1)	\
 			DSI_CMD_SHORT_LINK(di, p0, p1, TEGRA_DSI_LINK0)
+
+#define DSI_CMD_SHORT_BOTH(di, p0, p1)	\
+		DSI_CMD_SHORT_LINK(di, p0, p1, TEGRA_DSI_LINK0), \
+		DSI_CMD_SHORT_LINK(di, p0, p1, TEGRA_DSI_LINK1)
 
 #define DSI_DLY_MS(ms)	{ \
 			.cmd_type = TEGRA_DSI_DELAY_MS, \
@@ -195,6 +207,10 @@ extern struct fb_videomode tegra_dc_vga_mode;
 
 #define DSI_CMD_LONG(di, ptr)	\
 			DSI_CMD_LONG_LINK(di, ptr, TEGRA_DSI_LINK0)
+			
+#define DSI_CMD_LONG_BOTH(di, ptr)	\
+		DSI_CMD_LONG_LINK(di, ptr, TEGRA_DSI_LINK0), \
+		DSI_CMD_LONG_LINK(di, ptr, TEGRA_DSI_LINK1)
 
 #define DSI_SEND_FRAME(cnt)	{ \
 			.cmd_type = TEGRA_DSI_SEND_FRAME, \
@@ -335,6 +351,7 @@ struct tegra_dsi_out {
 	bool		no_pkt_seq_eot; /* 1st generation panel may not
 					 * support eot. Don't set it for
 					 * most panels. */
+	bool		no_pkt_seq_hbp;
 	bool		te_polarity_low;
 	bool		power_saving_suspend;
 	bool		dsi2lvds_bridge_enable;
