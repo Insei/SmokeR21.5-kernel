@@ -1380,6 +1380,7 @@ static void tegra_dsi_setup_ganged_mode_pkt_length(struct tegra_dc *dc,
 	u32 hact_pkt_len_pix = 0;
 	u32 hact_pkt_len_bytes = 0;
 	u32 hfp_pkt_len_bytes = 0;
+	u32 hbp_pkt_len_bytes = 0;
 	u32 pix_per_line_orig = 0;
 	u32 pix_per_line = 0;
 	u32 val = 0;
@@ -1411,8 +1412,17 @@ static void tegra_dsi_setup_ganged_mode_pkt_length(struct tegra_dc *dc,
 		hfp_pkt_len_bytes = pix_per_line *
 			dsi->pixel_scaler_mul / dsi->pixel_scaler_div -
 			hact_pkt_len_bytes - HEADER_OVERHEAD;
-
-		val = DSI_PKT_LEN_2_3_LENGTH_2(0x0) |
+		
+		if (!dsi->info.no_pkt_seq_hbp) {
+			hbp_pkt_len_bytes = DIV_ROUND_UP(
+				(dc->mode.h_sync_width + dc->mode.h_back_porch) *
+				dsi->pixel_scaler_mul / dsi->pixel_scaler_div, 2) - 14;
+			hfp_pkt_len_bytes = DIV_ROUND_UP(
+				dc->mode.h_front_porch *
+				dsi->pixel_scaler_mul / dsi->pixel_scaler_div, 2) - 8;
+		}
+		
+		val = DSI_PKT_LEN_2_3_LENGTH_2(hbp_pkt_len_bytes) |
 			DSI_PKT_LEN_2_3_LENGTH_3(hact_pkt_len_bytes);
 		tegra_dsi_controller_writel(dsi, val, DSI_PKT_LEN_2_3, i);
 
@@ -1575,7 +1585,7 @@ static void tegra_dsi_set_pkt_seq(struct tegra_dc *dc,
 			break;
 		case TEGRA_DSI_VIDEO_NONE_BURST_MODE:
 		default:
-			if (dsi->info.ganged_type) {
+			if (dsi->info.no_pkt_seq_hbp) {
 				pkt_seq_3_5_rgb_lo =
 					DSI_PKT_SEQ_3_LO_PKT_31_ID(rgb_info);
 				pkt_seq =
@@ -2582,6 +2592,7 @@ static void tegra_dsi_ganged(struct tegra_dc *dc,
 	u32 high_width = 0;
 	u32 h_active = dc->out->modes->h_active;
 	u32 val = 0;
+	u32 dsi0_sp, dsi1_sp;
 
 	if (dsi->info.controller_vs < DSI_VS_1) {
 		dev_err(&dc->ndev->dev, "dsi: ganged mode not"
@@ -2591,13 +2602,21 @@ static void tegra_dsi_ganged(struct tegra_dc *dc,
 
 	if (dsi->info.ganged_type ==
 			TEGRA_DSI_GANGED_SYMMETRIC_LEFT_RIGHT) {
+		dsi0_sp = 0;
+		dsi1_sp = h_active / 2;
+		if (dsi->info.left_right_align
+				== TEGRA_DSI_LEFT_RIGHT_FLIPPED) {
+			dsi0_sp = h_active / 2;
+			dsi1_sp = 0;
+		}
+ 
 		/* DSI 0 */
 		tegra_dsi_controller_writel(dsi,
-			DSI_GANGED_MODE_START_POINTER(0),
+			DSI_GANGED_MODE_START_POINTER(dsi0_sp),
 			DSI_GANGED_MODE_START, DSI_INSTANCE_0);
 		/* DSI 1 */
 		tegra_dsi_controller_writel(dsi,
-			DSI_GANGED_MODE_START_POINTER(h_active / 2),
+			DSI_GANGED_MODE_START_POINTER(dsi1_sp),
 			DSI_GANGED_MODE_START, DSI_INSTANCE_1);
 
 		low_width = DIV_ROUND_UP(h_active, 2);
@@ -2607,13 +2626,22 @@ static void tegra_dsi_ganged(struct tegra_dc *dc,
 
 	} else if (dsi->info.ganged_type ==
 			TEGRA_DSI_GANGED_SYMMETRIC_EVEN_ODD) {
+		
+		dsi0_sp = 0;
+		dsi1_sp = 1;
+		if (dsi->info.even_odd_align
+				== TEGRA_DSI_EVEN_ODD_FLIPPED) {
+			dsi0_sp = 1;
+			dsi1_sp = 0;
+		}
+		
 		/* DSI 0 */
 		tegra_dsi_controller_writel(dsi,
-			DSI_GANGED_MODE_START_POINTER(0),
+			DSI_GANGED_MODE_START_POINTER(dsi0_sp),
 			DSI_GANGED_MODE_START, DSI_INSTANCE_0);
 		/* DSI 1 */
 		tegra_dsi_controller_writel(dsi,
-			DSI_GANGED_MODE_START_POINTER(1),
+			DSI_GANGED_MODE_START_POINTER(dsi1_sp),
 			DSI_GANGED_MODE_START, DSI_INSTANCE_1);
 
 		low_width = 0x1;
@@ -2666,7 +2694,8 @@ static int tegra_dsi_set_to_hs_mode(struct tegra_dc *dc,
 		tegra_dsi_set_dc_clk(dc, dsi);
 	}
 
-	tegra_dsi_set_control_reg_hs(dsi, driven_mode);
+	if (!(dc->out->flags & TEGRA_DC_OUT_INITIALIZED_MODE))
+		tegra_dsi_set_control_reg_hs(dsi, driven_mode);
 
 	if (dsi->info.ganged_type)
 		tegra_dsi_ganged(dc, dsi);
@@ -3835,7 +3864,7 @@ static void tegra_dsi_send_dc_frames(struct tegra_dc *dc,
 	}
 }
 
-static void tegra_dsi_setup_initialized_panel(struct tegra_dc_dsi_data *dsi)
+static void tegra_dsi_setup_initialized_panel(struct tegra_dc *dc, struct tegra_dc_dsi_data *dsi)
 {
 	int err;
 
@@ -3849,9 +3878,17 @@ static void tegra_dsi_setup_initialized_panel(struct tegra_dc_dsi_data *dsi)
 	dsi->status.init = DSI_MODULE_INIT;
 
 	tegra_dsi_clk_enable(dsi);
-	tegra_dsi_set_to_hs_mode(dsi->dc, dsi, TEGRA_DSI_DRIVEN_BY_DC);
-
+	err = tegra_dsi_set_to_hs_mode(dsi->dc, dsi, TEGRA_DSI_DRIVEN_BY_DC);
+	if (err < 0) {
+		dev_err(&dc->ndev->dev,
+			"dsi: not able to set to hs mode\n");
+		return;
+	}
+	
+	tegra_dsi_start_dc_stream(dc, dsi);
+ 
 	dsi->host_suspended = false;
+	
 	dsi->enabled = true;
 }
 
@@ -3864,7 +3901,7 @@ static void tegra_dc_dsi_enable(struct tegra_dc *dc)
 	tegra_dc_io_start(dc);
 
 	if (dc->out->flags & TEGRA_DC_OUT_INITIALIZED_MODE) {
-		tegra_dsi_setup_initialized_panel(dsi);
+		tegra_dsi_setup_initialized_panel(dc, dsi);
 		goto fail;
 	}
 
