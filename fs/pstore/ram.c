@@ -380,6 +380,12 @@ static int ramoops_init_prz(struct device *dev, struct ramoops_context *cxt,
 	return 0;
 }
 
+void notrace ramoops_console_write_buf(const char *buf, size_t size)
+{
+	struct ramoops_context *cxt = &oops_cxt;
+	persistent_ram_write(cxt->cprz, buf, size);
+}
+
 static int ramoops_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -419,7 +425,6 @@ static int ramoops_probe(struct platform_device *pdev)
 	cxt->ftrace_size = pdata->ftrace_size;
 	cxt->dump_oops = pdata->dump_oops;
 	cxt->ecc_info = pdata->ecc_info;
-	ramoops_console_size = pdata->console_size;
 
 	paddr = cxt->phys_addr;
 
