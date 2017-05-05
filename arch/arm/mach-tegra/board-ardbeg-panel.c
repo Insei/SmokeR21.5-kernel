@@ -206,8 +206,8 @@ static struct resource ardbeg_disp2_resources[] = {
 static struct tegra_dc_sd_settings sd_settings;
 
 static struct tegra_dc_out ardbeg_disp1_out = {
-	.type		= TEGRA_DC_OUT_DSI,
-	.sd_settings	= &sd_settings,
+	.type			= TEGRA_DC_OUT_DSI,
+	.sd_settings	= NULL,
 };
 #endif
 
@@ -519,7 +519,7 @@ static struct tegra_dc_platform_data ardbeg_disp1_pdata = {
 	.fb		= &ardbeg_disp1_fb_data,
 	.emc_clk_rate	= 204000000,
 #ifdef CONFIG_TEGRA_DC_CMU
-	.cmu_enable	= 1,
+	.cmu_enable	= 0,
 #endif
 	.low_v_win	= 0x02,
 };
@@ -1000,23 +1000,7 @@ int __init ardbeg_panel_init(void)
 	default:	 /* default is ardbeg_tmds_config[] */
 		break;
 	}
-
-	if (!of_have_populated_dt() || !dc2_node ||
-		!of_device_is_available(dc2_node)) {
-#ifndef CONFIG_TEGRA_HDMI_PRIMARY
-		res = platform_get_resource_byname(&ardbeg_disp2_device,
-					IORESOURCE_MEM, "fbmem");
-		res->start = tegra_fb2_start;
-		res->end = tegra_fb2_start + tegra_fb2_size - 1;
-#endif
-		ardbeg_disp2_device.dev.parent = &phost1x->dev;
-		err = platform_device_register(&ardbeg_disp2_device);
-		if (err) {
-			pr_err("disp2 device registration failed\n");
-			return err;
-		}
-	}
-
+	
 	return err;
 }
 
@@ -1078,6 +1062,5 @@ int __init ardbeg_display_init(void)
 #endif
 
 	clk_put(disp1_clk);
-	clk_put(disp2_clk);
 	return 0;
 }
