@@ -40,9 +40,6 @@
 #include <dhd_linux.h>
 #include <bcmsdh_sdmmc.h>
 #include <dhd_dbg.h>
-#if defined(CONFIG_WIFI_CONTROL_FUNC)
-#include <linux/wlan_plat.h>
-#endif
 
 #if !defined(SDIO_VENDOR_ID_BROADCOM)
 #define SDIO_VENDOR_ID_BROADCOM		0x02d0
@@ -78,7 +75,7 @@
 extern void wl_cfg80211_set_parent_dev(void *dev);
 extern void sdioh_sdmmc_devintr_off(sdioh_info_t *sd);
 extern void sdioh_sdmmc_devintr_on(sdioh_info_t *sd);
-extern void* bcmsdh_probe(osl_t *osh, void *dev, void *sdioh, void *adapter_info, uint bus_type,
+extern void *bcmsdh_probe(osl_t *osh, void *dev, void *sdioh, void *adapter_info, uint bus_type,
 	uint bus_num, uint slot_num);
 extern int bcmsdh_remove(bcmsdh_info_t *bcmsdh);
 
@@ -106,53 +103,35 @@ static int sdioh_probe(struct sdio_func *func)
 	wifi_adapter_info_t *adapter;
 	osl_t *osh = NULL;
 	sdioh_info_t *sdioh = NULL;
-#if defined(CONFIG_WIFI_CONTROL_FUNC)
-	struct wifi_platform_data *plat_data;
-#endif
 
 	sd_err(("bus num (host idx)=%d, slot num (rca)=%d\n", host_idx, rca));
 	adapter = dhd_wifi_platform_get_adapter(SDIO_BUS, host_idx, rca);
-	if (adapter  != NULL) {
+	if (adapter  != NULL)
 		sd_err(("found adapter info '%s'\n", adapter->name));
-#if defined(CONFIG_WIFI_CONTROL_FUNC)
-		if (adapter->wifi_plat_data) {
-			plat_data = adapter->wifi_plat_data;
-			/* sdio card detection is completed,
-			 * so stop card detection here */
-			if (plat_data->set_carddetect) {
-				sd_debug(("stopping card detection\n"));
-				plat_data->set_carddetect(0);
-			}
-			else
-				sd_err(("set_carddetect is not registered\n"));
-		}
-		else
-			sd_err(("platform data is NULL\n"));
-#endif
-	} else
+	else
 		sd_err(("can't find adapter info for this chip\n"));
 
 #ifdef WL_CFG80211
 	wl_cfg80211_set_parent_dev(&func->dev);
 #endif
 
-	 /* allocate SDIO Host Controller state info */
-	 osh = osl_attach(&func->dev, SDIO_BUS, TRUE);
-	 if (osh == NULL) {
-		 sd_err(("%s: osl_attach failed\n", __FUNCTION__));
-		 goto fail;
-	 }
-	 osl_static_mem_init(osh, adapter);
-	 sdioh = sdioh_attach(osh, func);
-	 if (sdioh == NULL) {
-		 sd_err(("%s: sdioh_attach failed\n", __FUNCTION__));
-		 goto fail;
-	 }
-	 sdioh->bcmsdh = bcmsdh_probe(osh, &func->dev, sdioh, adapter, SDIO_BUS, host_idx, rca);
-	 if (sdioh->bcmsdh == NULL) {
-		 sd_err(("%s: bcmsdh_probe failed\n", __FUNCTION__));
-		 goto fail;
-	 }
+	/* allocate SDIO Host Controller state info */
+	osh = osl_attach(&func->dev, SDIO_BUS, TRUE);
+	if (osh == NULL) {
+		sd_err(("%s: osl_attach failed\n", __FUNCTION__));
+		goto fail;
+	}
+	osl_static_mem_init(osh, adapter);
+	sdioh = sdioh_attach(osh, func);
+	if (sdioh == NULL) {
+		sd_err(("%s: sdioh_attach failed\n", __FUNCTION__));
+		goto fail;
+	}
+	sdioh->bcmsdh = bcmsdh_probe(osh, &func->dev, sdioh, adapter, SDIO_BUS, host_idx, rca);
+	if (sdioh->bcmsdh == NULL) {
+		sd_err(("%s: bcmsdh_probe failed\n", __FUNCTION__));
+		goto fail;
+	}
 
 	sdio_set_drvdata(func, sdioh);
 	return 0;
@@ -225,11 +204,17 @@ static void bcmsdh_sdmmc_remove(struct sdio_func *func)
 
 /* devices we support, null terminated */
 static const struct sdio_device_id bcmsdh_sdmmc_ids[] = {
-	{ 	.class	= SDIO_CLASS_NONE,
-		.vendor	= SDIO_VENDOR_ID_BROADCOM,
-		.device	= SDIO_ANY_ID
-	},
-	{ /* end: all zeroes */                         },
+	{ SDIO_DEVICE(SDIO_VENDOR_ID_BROADCOM, SDIO_DEVICE_ID_BROADCOM_DEFAULT) },
+	{ SDIO_DEVICE(SDIO_VENDOR_ID_BROADCOM, SDIO_DEVICE_ID_BROADCOM_4325_SDGWB) },
+	{ SDIO_DEVICE(SDIO_VENDOR_ID_BROADCOM, SDIO_DEVICE_ID_BROADCOM_4325) },
+	{ SDIO_DEVICE(SDIO_VENDOR_ID_BROADCOM, SDIO_DEVICE_ID_BROADCOM_4329) },
+	{ SDIO_DEVICE(SDIO_VENDOR_ID_BROADCOM, SDIO_DEVICE_ID_BROADCOM_4319) },
+	{ SDIO_DEVICE(SDIO_VENDOR_ID_BROADCOM, SDIO_DEVICE_ID_BROADCOM_4330) },
+	{ SDIO_DEVICE(SDIO_VENDOR_ID_BROADCOM, SDIO_DEVICE_ID_BROADCOM_4334) },
+	{ SDIO_DEVICE(SDIO_VENDOR_ID_BROADCOM, SDIO_DEVICE_ID_BROADCOM_4324) },
+	{ SDIO_DEVICE(SDIO_VENDOR_ID_BROADCOM, SDIO_DEVICE_ID_BROADCOM_43239) },
+	{ SDIO_DEVICE_CLASS(SDIO_CLASS_NONE)		},
+	{ /* end: all zeroes */				},
 };
 
 MODULE_DEVICE_TABLE(sdio, bcmsdh_sdmmc_ids);
@@ -265,7 +250,7 @@ static int bcmsdh_sdmmc_suspend(struct device *pdev)
 	}
 #if defined(OOB_INTR_ONLY)
 	bcmsdh_oob_intr_set(sdioh->bcmsdh, FALSE);
-#endif 
+#endif
 	dhd_mmc_suspend = TRUE;
 	smp_mb();
 
@@ -285,7 +270,7 @@ static int bcmsdh_sdmmc_resume(struct device *pdev)
 	dhd_mmc_suspend = FALSE;
 #if defined(OOB_INTR_ONLY)
 	bcmsdh_resume(sdioh->bcmsdh);
-#endif 
+#endif
 
 	smp_mb();
 	return 0;

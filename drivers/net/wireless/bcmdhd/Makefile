@@ -9,8 +9,8 @@ DHDCFLAGS += -Wall -Wstrict-prototypes -Dlinux -DLINUX -DBCMDRIVER            \
 	-DWIFI_ACT_FRAME -DARP_OFFLOAD_SUPPORT                                \
 	-DKEEP_ALIVE -DCSCAN -DPKT_FILTER_SUPPORT                             \
 	-DEMBEDDED_PLATFORM -DPNO_SUPPORT                                     \
-	-DDHD_DONOT_FORWARD_BCMEVENT_AS_NETWORK_PKT -DGET_CUSTOM_MAC_ENABLE   \
-	-DCUSTOMER_HW2 -DENABLE_INSMOD_NO_FW_LOAD -DQMONITOR -DTOE
+	-DDHD_DONOT_FORWARD_BCMEVENT_AS_NETWORK_PKT                           \
+	-DCUSTOMER_HW2 -DENABLE_INSMOD_NO_FW_LOAD -DQMONITOR -DGET_CUSTOM_MAC_ENABLE
 
 #################
 # Common feature
@@ -85,7 +85,8 @@ DHDCFLAGS += -DDHDENABLE_TAILPAD
 DHDCFLAGS += -DWL_CFG80211_VSDB_PRIORITIZE_SCAN_REQUEST
 DHDCFLAGS += -DWL_CFG80211_STA_EVENT
 DHDCFLAGS += -DWL_IFACE_COMB_NUM_CHANNELS
-DHDCFLAGS += -DWL_ENABLE_P2P_IF
+DHDCFLAGS += -DWL_CFG80211_P2P_DEV_IF
+#DHDCFLAGS += -DWL_ENABLE_P2P_IF
 
 ##########################
 # driver type
@@ -94,24 +95,12 @@ DHDCFLAGS += -DWL_ENABLE_P2P_IF
 ##########################
 DRIVER_TYPE ?= $(CONFIG_BCMDHD)
 
-DHDCFLAGS += -DBCM4339_CHIP -DBCM43241_CHIP -DBCM4354_CHIP
-DHDCFLAGS += -DPROP_TXSTATUS_VSDB
-DHDCFLAGS += -DCUSTOM_DPC_PRIO_SETTING=99
-DHDCFLAGS += -DRXFRAME_THREAD
-DHDCFLAGS += -DDHDTCPACK_SUPPRESS
-
 #########################
-# BCM43241Chip dependent feature
+# Chip dependent feature
 #########################
-DHDCFLAGS += -DMIMO_ANT_SETTING
-DHDCFLAGS += -DCUSTOM_SDIO_F2_BLKSIZE=128
-DHDCFLAGS += -DAMPDU_HOSTREORDER
-DHDCFLAGS += -DCUSTOM_AMPDU_BA_WSIZE=32
-ifeq ($(DRIVER_TYPE),m)
-  DHDCFLAGS += -fno-pic
-endif
-
 ifneq ($(CONFIG_BCM4354),)
+  DHDCFLAGS += -DBCM4354_CHIP -DHW_OOB
+
 # tput enhancement
   DHDCFLAGS += -DCUSTOM_GLOM_SETTING=8 -DCUSTOM_RXCHAIN=1
   DHDCFLAGS += -DUSE_DYNAMIC_F2_BLKSIZE -DDYNAMIC_F2_BLKSIZE_FOR_NONLEGACY=128
@@ -123,6 +112,7 @@ ifneq ($(CONFIG_BCM4354),)
   DHDCFLAGS += -DREPEAT_READFRAME
   DHDCFLAGS += -DCUSTOM_AMPDU_BA_WSIZE=64
   DHDCFLAGS += -DCUSTOM_DPC_CPUCORE=0
+  DHDCFLAGS += -DPROP_TXSTATUS_VSDB
   DHDCFLAGS += -DCUSTOM_MAX_TXGLOM_SIZE=40
   DHDCFLAGS += -DMAX_HDR_READ=128
   DHDCFLAGS += -DDHD_FIRSTREAD=128
@@ -135,6 +125,8 @@ ifneq ($(CONFIG_BCM4354),)
 endif
 
 ifneq ($(CONFIG_BCM4339),)
+  DHDCFLAGS += -DBCM4339_CHIP -DHW_OOB
+
   # tput enhancement
   DHDCFLAGS += -DCUSTOM_GLOM_SETTING=8 -DCUSTOM_RXCHAIN=1
   DHDCFLAGS += -DUSE_DYNAMIC_F2_BLKSIZE -DDYNAMIC_F2_BLKSIZE_FOR_NONLEGACY=128
@@ -145,6 +137,7 @@ ifneq ($(CONFIG_BCM4339),)
   DHDCFLAGS += -DRXFRAME_THREAD
   DHDCFLAGS += -DCUSTOM_AMPDU_BA_WSIZE=64
   DHDCFLAGS += -DCUSTOM_DPC_CPUCORE=0
+# DHDCFLAGS += -DPROP_TXSTATUS_VSDB
   DHDCFLAGS += -DCUSTOM_MAX_TXGLOM_SIZE=32
 
   # New Features
@@ -154,15 +147,9 @@ ifneq ($(CONFIG_BCM4339),)
 endif
 
 ifneq ($(CONFIG_BCMDHD_SDIO),)
-  DHDCFLAGS += -DBDC -DDHD_BCMEVENTS -DMMC_SDIO_ABORT
+  DHDCFLAGS += -DBDC -DOOB_INTR_ONLY -DDHD_BCMEVENTS -DMMC_SDIO_ABORT
   DHDCFLAGS += -DBCMSDIO -DBCMLXSDMMC -DUSE_SDIOFIFO_IOVAR
   DHDCFLAGS += -DPROP_TXSTATUS
-endif
-
-ifeq ($(CONFIG_BCMDHD_HW_OOB),y)
- DHDCFLAGS += -DHW_OOB -DOOB_INTR_ONLY
-else
- DHDCFLAGS += -DSDIO_ISR_THREAD
 endif
 
 ifneq ($(CONFIG_BCMDHD_PCIE),)
@@ -174,7 +161,7 @@ endif
 EXTRA_CFLAGS += $(DHDCFLAGS) -DDHD_DEBUG
 EXTRA_CFLAGS += -DSRCBASE=\"$(src)\"
 EXTRA_CFLAGS += -I$(src)/include/ -I$(src)/
-KBUILD_CFLAGS += -I$(LINUXDIR)/include -I$(shell pwd) -Idrivers/net/wireless/bcmdhd -Idrivers/net/wireless/bcmdhd/include
+KBUILD_CFLAGS += -I$(LINUXDIR)/include -I$(shell pwd)
 
 DHDOFILES := dhd_pno.o dhd_common.o dhd_ip.o dhd_custom_gpio.o \
 	dhd_linux.o dhd_linux_sched.o dhd_cfg80211.o dhd_linux_wq.o aiutils.o bcmevent.o \
@@ -193,3 +180,15 @@ endif
 
 bcmdhd-objs := $(DHDOFILES)
 obj-$(DRIVER_TYPE)   += bcmdhd.o
+
+all:
+	@echo "$(MAKE) --no-print-directory -C $(KDIR) SUBDIRS=$(CURDIR) modules"
+	@$(MAKE) --no-print-directory -C $(KDIR) SUBDIRS=$(CURDIR) modules
+
+clean:
+	rm -rf *.o *.ko *.mod.c *~ .*.cmd *.o.cmd .*.o.cmd \
+	Module.symvers modules.order .tmp_versions modules.builtin
+
+install:
+	@$(MAKE) --no-print-directory -C $(KDIR) \
+		SUBDIRS=$(CURDIR) modules_install

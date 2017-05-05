@@ -3,6 +3,7 @@
  *  implement bcmsdh API for SDIOH driver
  *
  * Copyright (C) 1999-2014, Broadcom Corporation
+ * Copyright (C) 2016 XiaoMi, Inc.
  * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -42,6 +43,7 @@
 #include <bcmsdh.h>	/* BRCM API for SDIO clients (such as wl, dhd) */
 #include <bcmsdbus.h>	/* common SDIO/controller interface */
 #include <sbsdio.h>	/* SDIO device core hardware definitions. */
+
 #include <sdio.h>	/* SDIO Device and Protocol Specs */
 
 #define SDIOH_API_ACCESS_RETRY_LIMIT	2
@@ -49,7 +51,6 @@ const uint bcmsdh_msglevel = BCMSDH_ERROR_VAL;
 
 /* local copy of bcm sd handler */
 bcmsdh_info_t * l_bcmsdh = NULL;
-
 
 #if defined(OOB_INTR_ONLY) && defined(HW_OOB)
 extern int
@@ -105,7 +106,6 @@ bcmsdh_detach(osl_t *osh, void *sdh)
 	}
 
 	l_bcmsdh = NULL;
-
 	return 0;
 }
 

@@ -547,7 +547,6 @@ typedef struct wl_assoc_params {
 					*/
 	chanspec_t chanspec_list[1];	/* list of chanspecs */
 } wl_assoc_params_t;
-
 #define WL_ASSOC_PARAMS_FIXED_SIZE 	OFFSETOF(wl_assoc_params_t, chanspec_list)
 
 /* used for reassociation/roam to a specific BSSID and channel */
@@ -1665,7 +1664,7 @@ typedef struct {
 				 */
 	uint32	rxnack;		/* obsolete */
 	uint32	frmscons;	/* obsolete */
-	uint32  txnack;		/* obsolete */
+	uint32	txnack;		/* obsolete */
 	uint32	rxback;		/* blockack rxcnt */
 	uint32	txback;		/* blockack txcnt */
 
@@ -1741,7 +1740,7 @@ typedef struct {
 
 	uint32	rfdisable;	/* count of radio disables */
 	uint32	bphy_rxcrsglitch;	/* PHY count of bphy glitches */
-	uint32  bphy_badplcp;
+	uint32	bphy_badplcp;
 
 	uint32	txexptime;	/* Tx frames suppressed due to timer expiration */
 
@@ -2070,22 +2069,6 @@ typedef struct {
 
 } wl_delta_stats_t;
 
-/* structure to store per-rate rx statistics */
-typedef struct wl_scb_rx_rate_stats {
-	uint32  rx1mbps[2];	/* packets rx at 1Mbps */
-	uint32  rx2mbps[2];	/* packets rx at 2Mbps */
-	uint32  rx5mbps5[2];	/* packets rx at 5.5Mbps */
-	uint32  rx6mbps[2];	/* packets rx at 6Mbps */
-	uint32  rx9mbps[2];	/* packets rx at 9Mbps */
-	uint32  rx11mbps[2];	/* packets rx at 11Mbps */
-	uint32  rx12mbps[2];	/* packets rx at 12Mbps */
-	uint32  rx18mbps[2];	/* packets rx at 18Mbps */
-	uint32  rx24mbps[2];	/* packets rx at 24Mbps */
-	uint32  rx36mbps[2];	/* packets rx at 36Mbps */
-	uint32  rx48mbps[2];	/* packets rx at 48Mbps */
-	uint32  rx54mbps[2];	/* packets rx at 54Mbps */
-} wl_scb_rx_rate_stats_t;
-
 typedef struct {
 	uint32 packets;
 	uint32 bytes;
@@ -2365,11 +2348,11 @@ enum {
 
 #define SORT_CRITERIA_BIT		0
 #define AUTO_NET_SWITCH_BIT		1
-#define ENABLE_BKGRD_SCAN_BIT		2
+#define ENABLE_BKGRD_SCAN_BIT	2
 #define IMMEDIATE_SCAN_BIT		3
 #define	AUTO_CONNECT_BIT		4
 #define	ENABLE_BD_SCAN_BIT		5
-#define ENABLE_ADAPTSCAN_BIT		6
+#define ENABLE_ADAPTSCAN_BIT	6
 #define IMMEDIATE_EVENT_BIT		8
 #define SUPPRESS_SSID_BIT		9
 #define ENABLE_NET_OFFLOAD_BIT		10
@@ -2513,7 +2496,6 @@ typedef BWL_PRE_PACKED_STRUCT struct pfn_olmsg_params_t {
 
 #define WL_PFN_HIDDEN_BIT		2
 #define WL_PFN_HIDDEN_MASK		0x4
-
 #ifndef BESTN_MAX
 #define BESTN_MAX			3
 #endif
@@ -2976,9 +2958,9 @@ typedef struct pm_wake_packet {
 
 /* Packet filter types. Currently, only pattern matching is supported. */
 typedef enum wl_pkt_filter_type {
-	WL_PKT_FILTER_TYPE_PATTERN_MATCH=0,	/* Pattern matching filter */
-	WL_PKT_FILTER_TYPE_MAGIC_PATTERN_MATCH=1, /* Magic packet match */
-	WL_PKT_FILTER_TYPE_PATTERN_LIST_MATCH=2	/* A pattern list (match all to match filter) */
+	WL_PKT_FILTER_TYPE_PATTERN_MATCH = 0,	/* Pattern matching filter */
+	WL_PKT_FILTER_TYPE_MAGIC_PATTERN_MATCH = 1, /* Magic packet match */
+	WL_PKT_FILTER_TYPE_PATTERN_LIST_MATCH = 2	/* A pattern list (match all to match filter) */
 } wl_pkt_filter_type_t;
 
 #define WL_PKT_FILTER_TYPE wl_pkt_filter_type_t
@@ -3071,7 +3053,6 @@ typedef struct wl_pkt_filter_ports {
 	/* End of fixed data */
 	uint16 ports[1];	/* Placeholder for ports[<count>] */
 } wl_pkt_filter_ports_t;
-
 #define WL_PKT_FILTER_PORTS_FIXED_LEN	OFFSETOF(wl_pkt_filter_ports_t, ports)
 
 #define WL_PKT_FILTER_PORTS_VERSION	0
