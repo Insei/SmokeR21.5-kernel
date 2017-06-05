@@ -82,6 +82,7 @@
 
 #include <linux/i2c/atmel_mxt_ts.h>
 #include <linux/firmware.h>
+#include <linux/input/synaptics_dsx.h>
 
 #include "board.h"
 #include "board-ardbeg.h"
@@ -976,6 +977,64 @@ static struct of_dev_auxdata ardbeg_auxdata_lookup[] __initdata = {
 #define TP_GPIO_RESET			TEGRA_GPIO_PK4
 #define TP_GPIO_INTR			TEGRA_GPIO_PR7
 
+#define S7040_FIRMWARE		"synaptics_s7040"
+#define S7040_OFILM_TEST_DATA	"synaptics_s7040_ofilm_test_data"
+
+static unsigned char s7040_ofilm_firmware_data[] = {
+	#include "synaptics_7040_ofilm_firmware.h"
+};
+
+static unsigned char s7040_ofilm_test_data[] = {
+	#include "synaptics_7040_ofilm_test_data.h"
+};
+
+DECLARE_BUILTIN_FIRMWARE_SIZE(S7040_FIRMWARE,
+			s7040_ofilm_firmware_data, sizeof(s7040_ofilm_firmware_data));
+
+DECLARE_BUILTIN_FIRMWARE_SIZE(S7040_OFILM_TEST_DATA,
+			s7040_ofilm_test_data, sizeof(s7040_ofilm_test_data));
+
+static unsigned int key_map[] = {
+	KEY_MENU, KEY_HOME, KEY_BACK
+};
+
+static struct synaptics_dsx_cap_button_map button_map = {
+	.nbuttons		= 3,
+	.map			= key_map,
+};
+
+static struct synaptics_dsx_board_data s7040_platform_data = {
+	.x_flip		= false,
+	.y_flip		= false,
+	.swap_axes		= false,
+	.irq_gpio		= TP_GPIO_INTR,
+	.irq_on_state		= 0,
+	.power_gpio		= -1,
+	.dcdc_gpio		= -1,
+	.power_on_state		= 1,
+	.reset_gpio		= TP_GPIO_RESET,
+	.reset_on_state		= 0,
+	.irq_flags		= IRQF_TRIGGER_LOW | IRQF_ONESHOT,
+	.fw_name		= S7040_FIRMWARE,
+	.self_test_name		= S7040_OFILM_TEST_DATA,
+	.panel_x		= 1536,
+	.panel_y		= 2048,
+	.power_delay_ms		= 160,
+	.reset_delay_ms		= 100,
+	.reset_active_ms		= 20,
+	.byte_delay_us		= 20,
+	.block_delay_us		= 20,
+	.regulator_name		= "vdd-touch",
+	.cap_button_map		= &button_map,
+};
+
+static struct i2c_board_info s7040_device_info[] __initdata = {
+ 	{
+		I2C_BOARD_INFO("synaptics_dsx_i2c", 0x20),
+		.platform_data = &s7040_platform_data,
+ 	},
+ };	
+
 #ifdef CONFIG_TOUCHSCREEN_ATMEL_MXT
 
 #include "mxT1664T.h"
@@ -1093,6 +1152,7 @@ static int __init ardbeg_touch_init(void)
 
 	i2c_register_board_info(3, mxt_device_info, ARRAY_SIZE(mxt_device_info));			
 #endif		
+	i2c_register_board_info(3, s7040_device_info, ARRAY_SIZE(s7040_device_info));
 
 	return 0;
 }
