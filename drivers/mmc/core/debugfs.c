@@ -180,7 +180,10 @@ static int mmc_clock_opt_get(void *data, u64 *val)
 {
 	struct mmc_host *host = data;
 
-	*val = host->ios.clock;
+	if (!host)
+ 		*val = 0;
+ 	else
+ 		*val = host->ios.clock;
 
 	return 0;
 }
@@ -188,6 +191,9 @@ static int mmc_clock_opt_get(void *data, u64 *val)
 static int mmc_clock_opt_set(void *data, u64 val)
 {
 	struct mmc_host *host = data;
+
+	if (!host)
+ 		return -EINVAL;
 
 	/* We need this check due to input value is u64 */
 	if (val > host->f_max)
@@ -258,6 +264,9 @@ static int mmc_speed_opt_set(void *data, u64 val)
 	int err = 0;
 	struct mmc_host *host = data;
 	u32 prev_timing, prev_maxdtr;
+
+	if (!host || !host->card)
+ 		return 0;
 
 	if (host->card->type != MMC_TYPE_MMC) {
 		pr_warn("%s: usage error, only MMC device is supported\n",

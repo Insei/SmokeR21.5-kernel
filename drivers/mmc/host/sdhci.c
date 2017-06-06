@@ -148,6 +148,26 @@ static void sdhci_dumpregs(struct sdhci_host *host)
 	pr_err(DRIVER_NAME ": Host ctl2: 0x%08x\n",
 		sdhci_readw(host, SDHCI_HOST_CONTROL2));
 
+#define SDHCI_VNDR_CLK_CTRL                             0x100
+ #define SDHCI_VNDR_MISC_CTRL                            0x120
+ #define SDMMC_SDMEMCOMPPADCTRL  0x1E0
+ #define SDMMC_AUTO_CAL_CONFIG   0x1E4
+ #define SDMMC_AUTO_CAL_STATUS   0x1EC
+ 	pr_err(DRIVER_NAME ": nvda clkc: 0x%08x\n",
+ 			sdhci_readl(host, SDHCI_VNDR_CLK_CTRL));
+ 
+ 	pr_err(DRIVER_NAME ": nvda misc: 0x%08x\n",
+ 			sdhci_readl(host, SDHCI_VNDR_MISC_CTRL));
+ 
+ 	pr_err(DRIVER_NAME ": nvda padc: 0x%08x\n",
+ 			sdhci_readl(host, SDMMC_SDMEMCOMPPADCTRL));
+ 
+ 	pr_err(DRIVER_NAME ": nvda calc: 0x%08x\n",
+ 			sdhci_readl(host, SDMMC_AUTO_CAL_CONFIG));
+ 
+ 	pr_err(DRIVER_NAME ": nvda cals: 0x%08x\n",
+ 			sdhci_readl(host, SDMMC_AUTO_CAL_STATUS));
+
 	if (host->flags & SDHCI_USE_ADMA)
 		pr_err(DRIVER_NAME ": ADMA Err: 0x%08x | ADMA Ptr: 0x%08x\n",
 		       readl(host->ioaddr + SDHCI_ADMA_ERROR),
@@ -1265,8 +1285,8 @@ static void sdhci_finish_data(struct sdhci_host *host)
 		 * upon error conditions.
 		 */
 		if (data->error) {
-			sdhci_reset(host, SDHCI_RESET_CMD);
 			sdhci_reset(host, SDHCI_RESET_DATA);
+			sdhci_reset(host, SDHCI_RESET_CMD);
 		}
 
 		sdhci_send_command(host, data->stop);
@@ -2462,8 +2482,8 @@ static void sdhci_card_event(struct mmc_host *mmc)
 		pr_err("%s: Resetting controller.\n",
 			mmc_hostname(host->mmc));
 
-		sdhci_reset(host, SDHCI_RESET_CMD);
 		sdhci_reset(host, SDHCI_RESET_DATA);
+		sdhci_reset(host, SDHCI_RESET_CMD);
 
 		host->mrq->cmd->error = -ENOMEDIUM;
 		tasklet_schedule(&host->finish_tasklet);
@@ -2682,8 +2702,8 @@ static void sdhci_tasklet_finish(unsigned long param)
 
 		/* Spec says we should do both at the same time, but Ricoh
 		   controllers do not like that. */
-		sdhci_reset(host, SDHCI_RESET_CMD);
 		sdhci_reset(host, SDHCI_RESET_DATA);
+		sdhci_reset(host, SDHCI_RESET_CMD);
 	}
 
 	host->mrq = NULL;
