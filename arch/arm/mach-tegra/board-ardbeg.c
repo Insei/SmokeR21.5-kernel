@@ -103,52 +103,6 @@
 
 static struct board_info board_info, display_board_info;
 
-static struct resource ardbeg_bluedroid_pm_resources[] = {
-	[0] = {
-		.name   = "shutdown_gpio",
-		.start  = TEGRA_GPIO_PR1,
-		.end    = TEGRA_GPIO_PR1,
-		.flags  = IORESOURCE_IO,
-	},
-	[1] = {
-		.name = "host_wake",
-		.flags  = IORESOURCE_IRQ | IORESOURCE_IRQ_HIGHEDGE,
-	},
-	[2] = {
-		.name = "gpio_ext_wake",
-		.start  = TEGRA_GPIO_PEE1,
-		.end    = TEGRA_GPIO_PEE1,
-		.flags  = IORESOURCE_IO,
-	},
-	[3] = {
-		.name = "gpio_host_wake",
-		.start  = TEGRA_GPIO_PU6,
-		.end    = TEGRA_GPIO_PU6,
-		.flags  = IORESOURCE_IO,
-	},
-	[4] = {
-		.name = "reset_gpio",
-		.start  = TEGRA_GPIO_PX1,
-		.end    = TEGRA_GPIO_PX1,
-		.flags  = IORESOURCE_IO,
-	},
-};
-
-static struct platform_device ardbeg_bluedroid_pm_device = {
-	.name = "bluedroid_pm",
-	.id             = 0,
-	.num_resources  = ARRAY_SIZE(ardbeg_bluedroid_pm_resources),
-	.resource       = ardbeg_bluedroid_pm_resources,
-};
-
-static noinline void __init ardbeg_setup_bluedroid_pm(void)
-{
-	ardbeg_bluedroid_pm_resources[1].start =
-		ardbeg_bluedroid_pm_resources[1].end =
-				gpio_to_irq(TEGRA_GPIO_PU6);
-	platform_device_register(&ardbeg_bluedroid_pm_device);
-}
-
 static struct i2c_board_info __initdata rt5639_board_info = {
 	I2C_BOARD_INFO("rt5639", 0x1c),
 };
@@ -1397,6 +1351,48 @@ static struct tegra_io_dpd pexclk2_io = {
 	.io_dpd_bit		= 6,
 };
 
+#ifdef CONFIG_BLUEDROID_PM
+static struct resource ardbeg_bluedroid_pm_resources[] = {
+	[0] = {
+		.name   = "shutdown_gpio",
+		.start  = TEGRA_GPIO_PR1,
+		.end    = TEGRA_GPIO_PR1,
+		.flags  = IORESOURCE_IO,
+	},
+	[1] = {
+		.name = "host_wake",
+		.flags  = IORESOURCE_IRQ | IORESOURCE_IRQ_HIGHEDGE,
+	},
+	[2] = {
+		.name = "gpio_ext_wake",
+		.start  = TEGRA_GPIO_PEE1,
+		.end    = TEGRA_GPIO_PEE1,
+		.flags  = IORESOURCE_IO,
+	},
+	[3] = {
+		.name = "gpio_host_wake",
+		.start  = TEGRA_GPIO_PU6,
+		.end    = TEGRA_GPIO_PU6,
+		.flags  = IORESOURCE_IO,
+	},
+};
+
+static struct platform_device ardbeg_bluedroid_pm_device = {
+	.name = "bluedroid_pm",
+	.id             = 0,
+	.num_resources  = ARRAY_SIZE(ardbeg_bluedroid_pm_resources),
+	.resource       = ardbeg_bluedroid_pm_resources,
+};
+
+static noinline void __init ardbeg_setup_bluedroid_pm(void)
+{
+	ardbeg_bluedroid_pm_resources[1].start =
+		ardbeg_bluedroid_pm_resources[1].end =
+				gpio_to_irq(TEGRA_GPIO_PU6);
+	platform_device_register(&ardbeg_bluedroid_pm_device);
+}
+#endif
+
 #ifdef CONFIG_NV_SENSORHUB
 static int __init tegra_jetson_sensorhub_init(void)
 {
@@ -1541,7 +1537,9 @@ static void __init tegra_ardbeg_late_init(void)
 		ardbeg_soctherm_init();
 	}
 
-	ardbeg_setup_bluedroid_pm();
+#ifdef CONFIG_BLUEDROID_PM
+ 	ardbeg_setup_bluedroid_pm();
+#endif
 	ardbeg_sysedp_dynamic_capping_init();
 	ardbeg_sysedp_batmon_init();
 }
