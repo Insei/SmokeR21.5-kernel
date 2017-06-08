@@ -163,29 +163,6 @@ static struct i2c_board_info __initdata i2c_led_board_info[] = {
 #endif
  };
 
-
-static struct i2c_board_info __initdata rt5639_board_info = {
-	I2C_BOARD_INFO("rt5639", 0x1c),
-};
-
-static struct max98090_eq_cfg max98090_eq_cfg[] = {
-};
-
-static struct max98090_pdata norrin_max98090_pdata = {
-	/* Equalizer Configuration */
-	.eq_cfg = max98090_eq_cfg,
-	.eq_cfgcnt = ARRAY_SIZE(max98090_eq_cfg),
-
-	/* Microphone Configuration */
-	.digmic_left_mode = 1,
-	.digmic_right_mode = 1,
-};
-
-static struct i2c_board_info __initdata max98090_board_info = {
-	I2C_BOARD_INFO("max98090", 0x10),
-	.platform_data	= &norrin_max98090_pdata,
-};
-
 static __initdata struct tegra_clk_init_table ardbeg_clk_init_table[] = {
 	/* name		parent		rate		enabled */
 	{ "pll_m",	NULL,		0,		false},
@@ -318,11 +295,6 @@ static void ardbeg_i2c_init(void)
 	struct board_info board_info;
 	tegra_get_board_info(&board_info);
 
-	if (board_info.board_id == BOARD_PM374) {
-		i2c_register_board_info(0, &max98090_board_info, 1);
-	} else if (board_info.board_id != BOARD_PM359)
-		i2c_register_board_info(0, &rt5639_board_info, 1);
-
 	if (board_info.board_id == BOARD_PM359 ||
 		board_info.board_id == BOARD_PM358 ||
 		board_info.board_id == BOARD_PM363 ||
@@ -368,129 +340,6 @@ static struct tegra_serial_platform_data ardbeg_uartd_pdata = {
 	.modem_interrupt = false,
 };
 
-static struct tegra_asoc_platform_data ardbeg_audio_pdata_rt5639 = {
-	.gpio_hp_det = TEGRA_GPIO_HP_DET,
-	.gpio_ldo1_en = TEGRA_GPIO_LDO_EN,
-	.gpio_spkr_en = -1,
-	.gpio_int_mic_en = -1,
-	.gpio_ext_mic_en = -1,
-	.gpio_hp_mute = -1,
-	.gpio_codec1 = -1,
-	.gpio_codec2 = -1,
-	.gpio_codec3 = -1,
-	.i2s_param[HIFI_CODEC]       = {
-		.audio_port_id = 1,
-		.is_i2s_master = 1,
-		.i2s_mode = TEGRA_DAIFMT_I2S,
-		.sample_size	= 16,
-		.channels       = 2,
-		.bit_clk	= 1536000,
-	},
-	.i2s_param[BT_SCO] = {
-		.audio_port_id = 3,
-		.is_i2s_master = 1,
-		.i2s_mode = TEGRA_DAIFMT_DSP_A,
-	},
-	.i2s_param[BASEBAND]	= {
-		.audio_port_id	= 0,
-		.is_i2s_master	= 1,
-		.i2s_mode	= TEGRA_DAIFMT_I2S,
-		.sample_size	= 16,
-		.rate		= 16000,
-		.channels	= 2,
-		.bit_clk	= 1024000,
-	},
-};
-
-static struct tegra_asoc_platform_data norrin_audio_pdata_max98090 = {
-	.gpio_hp_det		= NORRIN_GPIO_HP_DET,
-	.gpio_ext_mic_en	= TEGRA_GPIO_HP_DET,
-	.gpio_hp_mute		= -1,
-	.edp_support		= true,
-	.edp_states		= {1080, 842, 0},
-	.i2s_param[HIFI_CODEC]	= {
-		.audio_port_id	= 1,
-		.is_i2s_master	= 1,
-		.i2s_mode	= TEGRA_DAIFMT_I2S,
-		.sample_size	= 16,
-		.channels	= 2,
-		.bit_clk	= 1536000,
-	},
-	.i2s_param[BT_SCO]	= {
-		.audio_port_id	= 3,
-		.is_i2s_master	= 1,
-		.i2s_mode	= TEGRA_DAIFMT_DSP_A,
-		.sample_size	= 16,
-		.channels	= 1,
-		.bit_clk	= 512000,
-	},
-};
-
-static void ardbeg_audio_init(void)
-{
-	struct board_info board_info;
-	tegra_get_board_info(&board_info);
-#ifndef CONFIG_TOUCHSCREEN_ATMEL_MXT /* FIX ME! Problem in gpio pin's rt5639 */
-	if (board_info.board_id == BOARD_PM359 ||
-			board_info.board_id == BOARD_PM358 ||
-			board_info.board_id == BOARD_PM370 ||
-			board_info.board_id == BOARD_PM374 ||
-			board_info.board_id == BOARD_PM375 ||
-			board_info.board_id == BOARD_PM377 ||
-			board_info.board_id == BOARD_PM363) {
-		/*Laguna*/
-		ardbeg_audio_pdata_rt5639.gpio_hp_det = TEGRA_GPIO_HP_DET;
-		ardbeg_audio_pdata_rt5639.gpio_hp_det_active_high = 1;
-		if (board_info.board_id != BOARD_PM363)
-			ardbeg_audio_pdata_rt5639.gpio_ldo1_en = -1;
-	} else {
-		/*Ardbeg*/
-
-		if (board_info.board_id == BOARD_E1762 ||
-			board_info.board_id == BOARD_P1761 ||
-			board_info.board_id == BOARD_E1922) {
-			ardbeg_audio_pdata_rt5639.gpio_hp_det =
-				TEGRA_GPIO_CDC_IRQ;
-			ardbeg_audio_pdata_rt5639.use_codec_jd_irq = true;
-		} else {
-			ardbeg_audio_pdata_rt5639.gpio_hp_det =
-				TEGRA_GPIO_HP_DET;
-			ardbeg_audio_pdata_rt5639.use_codec_jd_irq = false;
-		}
-		ardbeg_audio_pdata_rt5639.gpio_hp_det_active_high = 0;
-		ardbeg_audio_pdata_rt5639.gpio_ldo1_en = TEGRA_GPIO_LDO_EN;
-	}
-
-	if (board_info.board_id == BOARD_E1971) {
-		ardbeg_audio_pdata_rt5639.gpio_hp_det = TEGRA_GPIO_CDC_IRQ;
-		ardbeg_audio_pdata_rt5639.use_codec_jd_irq = true;
-		ardbeg_audio_pdata_rt5639.gpio_hp_det_active_high = 0;
-		ardbeg_audio_pdata_rt5639.gpio_ldo1_en = TEGRA_GPIO_LDO_EN;
-	}
-
-	ardbeg_audio_pdata_rt5639.codec_name = "rt5639.0-001c";
-	ardbeg_audio_pdata_rt5639.codec_dai_name = "rt5639-aif1";
-
-	norrin_audio_pdata_max98090.codec_name = "max98090.0-0010";
-	norrin_audio_pdata_max98090.codec_dai_name = "HiFi";
-#endif /* FIX ME! Problem in gpio pin's rt5639 */
-}
-
-static struct platform_device ardbeg_audio_device_rt5639 = {
-	.name = "tegra-snd-rt5639",
-	.id = 0,
-	.dev = {
-		.platform_data = &ardbeg_audio_pdata_rt5639,
-	},
-};
-
-static struct platform_device norrin_audio_device_max98090 = {
-	.name	= "tegra-snd-max98090",
-	.id	= 0,
-	.dev	= {
-		.platform_data = &norrin_audio_pdata_max98090,
-	},
-};
 
 static void __init ardbeg_uart_init(void)
 {
@@ -1517,12 +1366,7 @@ static void __init tegra_ardbeg_late_init(void)
 	ardbeg_xusb_init();
 #endif
 	ardbeg_i2c_init();
-	ardbeg_audio_init();
 	platform_add_devices(ardbeg_devices, ARRAY_SIZE(ardbeg_devices));
-	if (board_info.board_id == BOARD_PM374)	/* Norrin ERS */
-		platform_device_register(&norrin_audio_device_max98090);
-	else if (board_info.board_id != BOARD_PM359)
-		platform_device_register(&ardbeg_audio_device_rt5639);
 	tegra_io_dpd_init();
 	if (board_info.board_id == BOARD_E2548 ||
 			board_info.board_id == BOARD_P2530)
