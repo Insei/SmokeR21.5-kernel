@@ -63,6 +63,7 @@
 #include <linux/platform_data/tegra_usb_modem_power.h>
 #include <linux/platform_data/tegra_ahci.h>
 #include <linux/irqchip/tegra.h>
+#include <sound/rt5670.h>
 #include <sound/max98090.h>
 
 #include <mach/irqs.h>
@@ -163,6 +164,28 @@ static struct i2c_board_info __initdata i2c_led_board_info[] = {
 #endif
  };
 
+static struct rt5670_platform_data rt5671_pdata = {
+	.jd_mode = 2,
+	.codec_gpio = TEGRA_GPIO_CDC_IRQ,
+	.in2_diff = true,
+	.in3_diff = false,
+	.in4_diff = true,
+	.bclk_32fs = {false, true, true, true},
+};
+
+static struct i2c_board_info __initdata audio_board_info[] = {
+	{
+		I2C_BOARD_INFO("rt5671", 0x1c),
+		.platform_data = &rt5671_pdata,
+ 	},
+	{
+		I2C_BOARD_INFO("tfa98xx", 0x34),
+ 	},
+	{
+		I2C_BOARD_INFO("tfa98xx", 0x37),
+ 	},		
+};
+
 static __initdata struct tegra_clk_init_table ardbeg_clk_init_table[] = {
 	/* name		parent		rate		enabled */
 	{ "pll_m",	NULL,		0,		false},
@@ -201,6 +224,7 @@ static __initdata struct tegra_clk_init_table ardbeg_clk_init_table[] = {
 	{ "uartb",	"pll_p",	408000000,	false},
 	{ "uartc",	"pll_p",	408000000,	false},
 	{ "uartd",	"pll_p",	408000000,	false},
+	{ "audio.emc",	"emc",		50000000,	false},
 	{ NULL,		NULL,		0,		0},
 };
 
@@ -295,6 +319,8 @@ static void ardbeg_i2c_init(void)
 	struct board_info board_info;
 	tegra_get_board_info(&board_info);
 
+	i2c_register_board_info(0, audio_board_info, ARRAY_SIZE(audio_board_info));
+
 	if (board_info.board_id == BOARD_PM359 ||
 		board_info.board_id == BOARD_PM358 ||
 		board_info.board_id == BOARD_PM363 ||
@@ -340,6 +366,33 @@ static struct tegra_serial_platform_data ardbeg_uartd_pdata = {
 	.modem_interrupt = false,
 };
 
+static struct tegra_asoc_platform_data ardbeg_audio_pdata_rt5671 = {
+	.gpio_hp_det = -1,
+	.gpio_ldo1_en = -1,
+	.gpio_spkr_en = -1,
+	.gpio_int_mic_en = -1,
+	.gpio_ext_mic_en = -1,
+	.gpio_hp_mute = TEGRA_GPIO_HP_MUTE,
+	.gpio_codec1 = -1,
+	.gpio_codec2 = -1,
+	.gpio_codec3 = -1,
+	.i2s_param[HIFI_CODEC]       = {
+		.audio_port_id = 0,
+		.is_i2s_master = 0,
+		.i2s_mode = TEGRA_DAIFMT_I2S,
+		.sample_size	= 16,
+		.channels       = 2,
+		.rate		= 48000,
+	},
+};
+
+static struct platform_device ardbeg_audio_device_rt5671 = {
+	.name = "tegra-snd-rt5671",
+	.id = 0,
+	.dev = {
+		.platform_data = &ardbeg_audio_pdata_rt5671,
+	},
+};
 
 static void __init ardbeg_uart_init(void)
 {
@@ -418,10 +471,12 @@ static struct platform_device *ardbeg_devices[] __initdata = {
 	&tegra_i2s_device1,
 	&tegra_i2s_device3,
 	&tegra_i2s_device4,
+	&ardbeg_audio_device_rt5671,
 	&tegra_spdif_device,
 	&spdif_dit_device,
 	&bluetooth_dit_device,
 	&baseband_dit_device,
+	&fm_dit_device,
 	&tegra_hda_device,
 	&tegra_offload_device,
 	&tegra30_avp_audio_device,
