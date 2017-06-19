@@ -1898,9 +1898,10 @@ arch_get_unmapped_area(struct file *filp, unsigned long addr,
 
 	if (addr) {
 		addr = PAGE_ALIGN(addr);
-		vma = find_vma(mm, addr);
+		vma = find_vma_prev(mm, addr, &prev);
 		if (TASK_SIZE - len >= addr && addr >= mmap_min_addr &&
-		    (!vma || addr + len <= vma->vm_start))
+		    (!vma || addr + len <= vm_start_gap(vma)) &&
+		    (!prev || addr >= vm_end_gap(prev)))
 			return addr;
 	}
 
@@ -1947,9 +1948,10 @@ arch_get_unmapped_area_topdown(struct file *filp, const unsigned long addr0,
 	/* requesting a specific address */
 	if (addr) {
 		addr = PAGE_ALIGN(addr);
-		vma = find_vma(mm, addr);
+		vma = find_vma_prev(mm, addr, &prev);
 		if (TASK_SIZE - len >= addr && addr >= mmap_min_addr &&
-				(!vma || addr + len <= vma->vm_start))
+				(!vma || addr + len <= vm_start_gap(vma)) &&
+				(!prev || addr >= vm_end_gap(prev)))
 			return addr;
 	}
 
@@ -2149,19 +2151,16 @@ int expand_upwards(struct vm_area_struct *vma, unsigned long address)
 	if (!(vma->vm_flags & VM_GROWSUP))
 		return -EFAULT;
 
-	/* Guard against exceeding limits of the address space. */
+	/* Guard against wrapping around to address 0. */
 	address &= PAGE_MASK;
-	if (address >= TASK_SIZE)
-		return -ENOMEM;
 	address += PAGE_SIZE;
+	if (!address)
+		return -ENOMEM;
 
 	/* Enforce stack_guard_gap */
 	gap_addr = address + stack_guard_gap;
-
-	/* Guard against overflow */
-	if (gap_addr < address || gap_addr > TASK_SIZE)
-		gap_addr = TASK_SIZE;
-
+	if (gap_addr < address)
+		return -ENOMEM;
 	next = vma->vm_next;
 	if (next && next->vm_start < gap_addr) {
 		if (!(next->vm_flags & VM_GROWSUP))
