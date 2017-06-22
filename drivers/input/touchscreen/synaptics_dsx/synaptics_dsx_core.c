@@ -2209,16 +2209,13 @@ static void synaptics_rmi4_set_params(struct synaptics_rmi4_data *rmi4_data)
 		}
 	}
 	
-	
-	/*Do not use the keys if you use - evdev specifies Touch screen as a keyboard: Ubuntu fix for mocha
-	 *TODO: Make working with the on-screen buttons
-	 *if (f1a) {
-	 *	for (ii = 0; ii < f1a->valid_button_count; ii++) {
-	 *		set_bit(f1a->button_map[ii], rmi4_data->input_dev->keybit);
-	 *		input_set_capability(rmi4_data->input_dev, EV_KEY, f1a->button_map[ii]);
-	 *	}
-	 *}
-	 */
+
+	 if (f1a) {
+	 	for (ii = 0; ii < f1a->valid_button_count; ii++) {
+	 		set_bit(f1a->button_map[ii], rmi4_data->input_dev->keybit);
+	 		input_set_capability(rmi4_data->input_dev, EV_KEY, f1a->button_map[ii]);
+	 	}
+	 }
 	 
 	return;
 }
