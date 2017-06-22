@@ -4365,13 +4365,13 @@ static int mxt_initialize_input_device(struct mxt_data *data)
 	}
 
 	/* For T15 key array */
-/*	if (data->pdata->config_array[index].key_codes) {
+	if (data->pdata->config_array[index].key_codes) {
 		for (i = 0; i < data->pdata->config_array[index].key_num; i++) {
 			if (data->pdata->config_array[index].key_codes[i])
 				input_set_capability(input_dev, EV_KEY,
 							data->pdata->config_array[index].key_codes[i]);
 		}
-	}*/
+	}
 
 	input_set_drvdata(input_dev, data);
 	i2c_set_clientdata(data->client, data);
