@@ -587,14 +587,14 @@ static struct soctherm_platform_data ardbeg_soctherm_data = {
 				},
 				{
 					.cdev_type = "tegra-heavy",
-					.trip_temp = 99000,
+					.trip_temp = 90000,
 					.trip_type = THERMAL_TRIP_HOT,
 					.upper = THERMAL_NO_LIMIT,
 					.lower = THERMAL_NO_LIMIT,
 				},
 				{
 					.cdev_type = "cpu-balanced",
-					.trip_temp = 90000,
+					.trip_temp = 73000,
 					.trip_type = THERMAL_TRIP_PASSIVE,
 					.upper = THERMAL_NO_LIMIT,
 					.lower = THERMAL_NO_LIMIT,
@@ -617,14 +617,14 @@ static struct soctherm_platform_data ardbeg_soctherm_data = {
 				},
 				{
 					.cdev_type = "tegra-heavy",
-					.trip_temp = 99000,
+					.trip_temp = 90000,
 					.trip_type = THERMAL_TRIP_HOT,
 					.upper = THERMAL_NO_LIMIT,
 					.lower = THERMAL_NO_LIMIT,
 				},
 				{
 					.cdev_type = "gpu-balanced",
-					.trip_temp = 90000,
+					.trip_temp = 73000,
 					.trip_type = THERMAL_TRIP_PASSIVE,
 					.upper = THERMAL_NO_LIMIT,
 					.lower = THERMAL_NO_LIMIT,
