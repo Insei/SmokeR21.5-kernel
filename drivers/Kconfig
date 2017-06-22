@@ -174,4 +174,6 @@ source "drivers/edp/Kconfig"
 
 source "drivers/gpu/nvgpu/Kconfig"
 
+source "drivers/tspdrv/Kconfig"
+
 endmenu
