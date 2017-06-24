@@ -34,6 +34,10 @@
 #include "gpio-names.h"
 #include "tegra11_host1x_devices.h"
 
+#ifdef CONFIG_STATE_NOTIFIER
+#include <linux/state_notifier.h>
+#endif
+
 #define TEGRA_DSI_GANGED_MODE	1
 
 #define DSI_PANEL_RESET		1
@@ -174,6 +178,10 @@ static int dsi_s_wqxga_7_9_enable(struct device *dev)
 		((struct tegra_dc_platform_data *)
 			(disp_device->dev.platform_data))->default_out;
 
+#ifdef CONFIG_STATE_NOTIFIER
+	state_resume();
+#endif
+
 	err = ardbeg_dsi_regulator_get(dev);
 	if (err < 0) {
 		pr_err("dsi regulator get failed\n");
@@ -237,6 +245,11 @@ fail:
 
 static int dsi_s_wqxga_7_9_disable(void)
 {
+   
+#ifdef CONFIG_STATE_NOTIFIER
+	state_suspend();
+#endif 
+
 	pr_info("panel: %s\n", __func__);
 	gpio_set_value(dsi_s_wqxga_7_9_pdata.dsi_panel_rst_gpio, 0);
 	msleep(10);
@@ -248,7 +261,6 @@ static int dsi_s_wqxga_7_9_disable(void)
 	msleep(10);
 	if (dvdd_lcd_1v8)
 		regulator_disable(dvdd_lcd_1v8);
-
 	return 0;
 }
 

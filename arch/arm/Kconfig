@@ -1548,6 +1548,13 @@ config SMP
 
 	  If you don't know what to do here, say N.
 
+config STATE_NOTIFIER
+    bool "State Notifier driver"
+    default y
+        ---help---
+        Monitor and notify device suspend states.
+
+
 config SMP_ON_UP
 	bool "Allow booting SMP kernel on uniprocessor systems (EXPERIMENTAL)"
 	depends on SMP && !XIP_KERNEL
