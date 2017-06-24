@@ -63,11 +63,11 @@ static inline u64 notrace cyc_to_ns(u64 cyc, u32 mult, u32 shift)
 	return (cyc * mult) >> shift;
 }
 
-unsigned long long notrace sched_clock(void)
+static unsigned long long notrace sched_clock_32(void)
 {
 	u64 epoch_ns;
-	u64 epoch_cyc;
-	u64 cyc;
+	u32 epoch_cyc;
+	u32 cyc;
 	unsigned long seq;
 
 	if (cd.suspended)
