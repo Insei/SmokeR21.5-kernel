@@ -675,7 +675,7 @@
 							};
 							c4 {
 								regulator-consumer-supply = "dovdd";
-								regulator-consumer-device = "2-0010";
+								regulator-consumer-device = "2-0036";
 
 							};
 							c5 {
