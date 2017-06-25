@@ -347,9 +347,6 @@ static const struct regop_offset_range gk20a_runcontrol_whitelist_ranges[] = {
 	{ 0x00501e10,   1 },
 	{ 0x00504610,   1 },
 };
-static const u32 gk20a_runcontrol_whitelist_ranges_count =
-	ARRAY_SIZE(gk20a_runcontrol_whitelist_ranges);
-
 
 /* quad ctl */
 static const u32 gk20a_qctl_whitelist[] = {
@@ -370,11 +367,6 @@ static const struct regop_offset_range gk20a_qctl_whitelist_ranges[] = {
 	{ 0x00504670,   1 },
 	{ 0x00504730,   4 },
 };
-static const u32 gk20a_qctl_whitelist_ranges_count =
-	ARRAY_SIZE(gk20a_qctl_whitelist_ranges);
-
-
-
 
 static bool validate_reg_ops(struct dbg_session_gk20a *dbg_s,
 			     u32 *ctx_rd_count, u32 *ctx_wr_count,
