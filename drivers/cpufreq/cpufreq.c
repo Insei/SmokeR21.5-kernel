@@ -1616,8 +1616,9 @@ static int __cpufreq_governor(struct cpufreq_policy *policy,
 						policy->cpu, event);
 
 	mutex_lock(&cpufreq_governor_lock);
-	if ((!policy->governor_enabled && (event == CPUFREQ_GOV_STOP)) ||
-	    (policy->governor_enabled && (event == CPUFREQ_GOV_START))) {
+	if ((policy->governor_enabled && event == CPUFREQ_GOV_START)
+	    || (!policy->governor_enabled
+	    && (event == CPUFREQ_GOV_LIMITS || event == CPUFREQ_GOV_STOP))) {
 		mutex_unlock(&cpufreq_governor_lock);
 		return -EBUSY;
 	}
@@ -1932,7 +1933,7 @@ int cpufreq_set_gov(char *target_gov, unsigned int cpu)
 	if (target_gov == NULL)
 		return -EINVAL;
 
-	/* Get current governer */
+	/* Get current governor */
 	cur_policy = cpufreq_cpu_get(cpu);
 	if (!cur_policy)
 		return -EINVAL;
@@ -1953,7 +1954,7 @@ int cpufreq_set_gov(char *target_gov, unsigned int cpu)
 	unlock_policy_rwsem_read(cur_policy->cpu);
 
 	if (!ret) {
-		pr_debug(" Target governer & current governer is same\n");
+		pr_debug(" Target governor & current governor is same\n");
 		ret = -EINVAL;
 		goto err_out;
 	} else {
