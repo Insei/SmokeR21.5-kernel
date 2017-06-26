@@ -60,6 +60,8 @@ static struct pm_qos_request cpufreq_min_req;
 
 static bool force_policy_max;
 
+int cur_profile;
+
 static int force_policy_max_set(const char *arg, const struct kernel_param *kp)
 {
 	int ret;
@@ -146,6 +148,28 @@ static unsigned int user_cap_speed(unsigned int requested_speed)
 		return cpu_user_cap;
 	return requested_speed;
 }
+
+static ssize_t current_power_profile_show(struct cpufreq_policy *policy, char *buf)
+{
+	ssize_t count;
+
+	count = sprintf(buf, "%d\n", cur_profile);
+
+	return count;
+}
+
+static ssize_t current_power_profile_store(struct cpufreq_policy *policy, char *buf, size_t count)
+{
+	sscanf(buf, "%u", &cur_profile);
+
+	return count;
+}
+
+static struct freq_attr attr_current_power_profile = {
+	.attr = {.name = "current_power_profile", .mode = 0644, },
+	.show = current_power_profile_show,
+	.store = current_power_profile_store,
+};
 
 #ifdef CONFIG_TEGRA_THERMAL_THROTTLE
 
@@ -969,6 +993,7 @@ static struct notifier_block tegra_cpufreq_policy_nb = {
 
 static struct freq_attr *tegra_cpufreq_attr[] = {
 	&cpufreq_freq_attr_scaling_available_freqs,
+        &attr_current_power_profile,
 #ifdef CONFIG_TEGRA_THERMAL_THROTTLE
 	&throttle,
 #endif

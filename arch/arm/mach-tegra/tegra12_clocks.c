@@ -9316,26 +9316,38 @@ struct tegra_cpufreq_table_data *tegra_cpufreq_table_get(void)
 /* EMC/CPU frequency ratio for power/performance optimization */
 unsigned long tegra_emc_to_cpu_ratio(unsigned long cpu_rate)
 {
-	static unsigned long emc_max_rate;
-
-	if (emc_max_rate == 0)
-		emc_max_rate = clk_round_rate(
-			tegra_get_clock_by_name("emc"), ULONG_MAX);
-
-	/* Vote on memory bus frequency based on cpu frequency;
-	   cpu rate is in kHz, emc rate is in Hz */
-	if (cpu_rate >= 1300000)
-		return emc_max_rate;	/* cpu >= 1.3GHz, emc max */
-	else if (cpu_rate >= 975000)
-		return 550000000;	/* cpu >= 975 MHz, emc 550 MHz */
-	else if (cpu_rate >= 725000)
-		return  350000000;	/* cpu >= 725 MHz, emc 350 MHz */
-	else if (cpu_rate >= 500000)
-		return  150000000;	/* cpu >= 500 MHz, emc 150 MHz */
-	else if (cpu_rate >= 275000)
-		return  50000000;	/* cpu >= 275 MHz, emc 50 MHz */
-	else
-		return 0;		/* emc min */
+        switch (cur_profile) {
+                case LOW_POWER_PROFILE: {
+                        if (cpu_rate >= 1044000)
+                                return 396000000;
+                        else if (cpu_rate >= 204000)
+                                return 204000000;
+                        break;
+                }
+                case MIDDLE_POWER_PROFILE: {
+                        if (cpu_rate >= 1530000)
+                                return 600000000;
+                        else if (cpu_rate >= 1044000)
+                                return 396000000;
+                        else if (cpu_rate >= 204000)
+                                return 204000000;
+                        break;
+                }
+                case HIGH_POWER_PROFILE:
+                default: {
+	                if (cpu_rate >= 1300000)
+                                return 924000000;    /* cpu >= 1.3GHz, emc max */
+                        else if (cpu_rate >= 975000)
+                                return 400000000;       /* cpu >= 975 MHz, emc 400 MHz */
+                        else if (cpu_rate >= 725000)
+                                return  200000000;      /* cpu >= 725 MHz, emc 200 MHz */
+                        else if (cpu_rate >= 500000)
+                                return  100000000;      /* cpu >= 500 MHz, emc 100 MHz */
+                        else if (cpu_rate >= 275000)
+                                return  50000000;       /* cpu >= 275 MHz, emc 50 MHz */
+                }
+        }
+        return 0;               /* emc min */
 }
 
 #ifdef CONFIG_ARCH_TEGRA_13x_SOC
