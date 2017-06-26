@@ -34,7 +34,6 @@
 #include <linux/platform_data/tegra_usb.h>
 #include <linux/spi/spi.h>
 #include <linux/spi/rm31080a_ts.h>
-#include <linux/maxim_sti.h>
 #include <linux/memblock.h>
 #include <linux/spi/spi-tegra.h>
 #include <linux/nfc/pn544.h>
@@ -88,8 +87,6 @@
 #include "board.h"
 #include "board-ardbeg.h"
 #include "board-common.h"
-#include "board-touch-raydium.h"
-#include "board-touch-maxim_sti.h"
 #include "clock.h"
 #include "common.h"
 #include "devices.h"
