@@ -369,7 +369,7 @@ static int tegra_fb_pan_display(struct fb_var_screeninfo *var,
 		tegra_fb->win.virt_addr = info->screen_base;
 
 		struct tegra_dc_win *win = &tegra_fb->win;
-		tegra_dc_update_windows(&win, 1);
+		tegra_dc_update_windows(&win, 1, NULL);
 		tegra_dc_sync_windows(&win, 1);
 		tegra_dc_program_bandwidth(win->dc, true);
 	}
