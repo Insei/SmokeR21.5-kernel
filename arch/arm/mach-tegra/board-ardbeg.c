@@ -1384,6 +1384,20 @@ static int __init tegra_jetson_sensorhub_init(void)
 late_initcall(tegra_jetson_sensorhub_init);
 #endif
 
+static struct platform_device bcm_ldisc_device = {
+     .name = "bcm_ldisc",
+     .id = -1,
+     .dev = {
+ 
+     },
+};
+ 
+void __init add_bcm_ldisc_device(void)
+{
+ 	printk("%s",__func__);
+ 	platform_device_register(&bcm_ldisc_device);
+}
+
 static void __init tegra_ardbeg_late_init(void)
 {
 	struct board_info board_info;
