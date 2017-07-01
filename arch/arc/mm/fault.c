@@ -59,6 +59,7 @@ void do_page_fault(struct pt_regs *regs, int write, unsigned long address,
 	struct mm_struct *mm = tsk->mm;
 	siginfo_t info;
 	int fault, ret;
+	int write = regs->ecr_cause & ECR_C_PROTV_STORE;  /* ST/EX */
 	unsigned int flags = FAULT_FLAG_ALLOW_RETRY | FAULT_FLAG_KILLABLE;
 
 	/*
@@ -122,6 +123,7 @@ good_area:
 			goto bad_area;
 	}
 
+survive:
 	/*
 	 * If for any reason at all we couldn't handle the fault,
 	 * make sure we exit gracefully rather than endlessly redo
@@ -201,12 +203,14 @@ no_context:
 	die("Oops", regs, address, cause_code);
 
 out_of_memory:
+	if (is_global_init(tsk)) {
+		yield();
+		goto survive;
+	}
 	up_read(&mm->mmap_sem);
 
-	if (user_mode(regs)) {
-		pagefault_out_of_memory();
-		return;
-	}
+	if (user_mode(regs))
+		do_group_exit(SIGKILL);	/* This will never return */
 
 	goto no_context;
 

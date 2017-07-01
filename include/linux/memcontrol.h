@@ -157,24 +157,14 @@ static inline void mem_cgroup_disable_oom(void)
 	bool old = mem_cgroup_toggle_oom(false);
 
 	WARN_ON(old == false);
-static inline void mem_cgroup_oom_enable(void)
-{
-	WARN_ON(current->memcg_oom.may_oom);
-	current->memcg_oom.may_oom = 1;
-}
-
-static inline void mem_cgroup_oom_disable(void)
-{
-	WARN_ON(!current->memcg_oom.may_oom);
-	current->memcg_oom.may_oom = 0;
 }
 
 static inline bool task_in_memcg_oom(struct task_struct *p)
 {
-	return p->memcg_oom.memcg;
+	return p->memcg_oom.in_memcg_oom;
 }
 
-bool mem_cgroup_oom_synchronize(bool wait);
+bool mem_cgroup_oom_synchronize(void);
 
 #ifdef CONFIG_MEMCG_SWAP
 extern int do_swap_account;
@@ -412,20 +402,12 @@ static inline void mem_cgroup_disable_oom(void)
 {
 }
 
-static inline void mem_cgroup_oom_enable(void)
-{
-}
-
-static inline void mem_cgroup_oom_disable(void)
-{
-}
-
 static inline bool task_in_memcg_oom(struct task_struct *p)
 {
 	return false;
 }
 
-static inline bool mem_cgroup_oom_synchronize(bool wait)
+static inline bool mem_cgroup_oom_synchronize(void)
 {
 	return false;
 }

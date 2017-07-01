@@ -2,15 +2,13 @@
  * relocate_kernel.S - put the kernel image in place to boot
  */
 
-#include <linux/linkage.h>
 #include <asm/kexec.h>
 #ifdef CONFIG_KEXEC_HARDBOOT
  #include <../mach-tegra/iomap.h>
 #endif
 
-	.align	3	/* not needed for this code, but keeps fncpy() happy */
-
-ENTRY(relocate_new_kernel)
+	.globl relocate_new_kernel
+relocate_new_kernel:
 
 	ldr	r0,kexec_indirection_page
 	ldr	r1,kexec_start_address
@@ -114,12 +112,10 @@ kexec_boot_atags:
 	.long	0x0
 
 #ifdef CONFIG_KEXEC_HARDBOOT
- 	.globl kexec_hardboot
+	.globl kexec_hardboot
 kexec_hardboot:
 	.long	0x0
 #endif
-
-ENDPROC(relocate_new_kernel)
 
 relocate_new_kernel_end:
 

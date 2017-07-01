@@ -86,16 +86,13 @@ static int save_trace(struct stackframe *frame, void *d)
 	return trace->nr_entries >= trace->max_entries;
 }
 
-/* This must be noinline to so that our skip calculation works correctly */
-static noinline void __save_stack_trace(struct task_struct *tsk,
-	struct stack_trace *trace, unsigned int nosched)
+void save_stack_trace_tsk(struct task_struct *tsk, struct stack_trace *trace)
 {
 	struct stack_trace_data data;
 	struct stackframe frame;
 
 	data.trace = trace;
 	data.skip = trace->skip;
-	data.no_sched_functions = nosched;
 
 	if (tsk != current) {
 #ifdef CONFIG_SMP
@@ -108,6 +105,7 @@ static noinline void __save_stack_trace(struct task_struct *tsk,
 			trace->entries[trace->nr_entries++] = ULONG_MAX;
 		return;
 #else
+		data.no_sched_functions = 1;
 		frame.fp = thread_saved_fp(tsk);
 		frame.sp = thread_saved_sp(tsk);
 		frame.lr = 0;		/* recovered from the stack */
@@ -116,12 +114,11 @@ static noinline void __save_stack_trace(struct task_struct *tsk,
 	} else {
 		register unsigned long current_sp asm ("sp");
 
-		/* We don't want this function nor the caller */
-		data.skip += 2;
+		data.no_sched_functions = 0;
 		frame.fp = (unsigned long)__builtin_frame_address(0);
 		frame.sp = current_sp;
 		frame.lr = (unsigned long)__builtin_return_address(0);
-		frame.pc = (unsigned long)__save_stack_trace;
+		frame.pc = (unsigned long)save_stack_trace_tsk;
 	}
 
 	walk_stackframe(&frame, save_trace, &data);
@@ -129,14 +126,9 @@ static noinline void __save_stack_trace(struct task_struct *tsk,
 		trace->entries[trace->nr_entries++] = ULONG_MAX;
 }
 
-void save_stack_trace_tsk(struct task_struct *tsk, struct stack_trace *trace)
-{
-	__save_stack_trace(tsk, trace, 1);
-}
-
 void save_stack_trace(struct stack_trace *trace)
 {
-	__save_stack_trace(current, trace, 0);
+	save_stack_trace_tsk(current, trace);
 }
 EXPORT_SYMBOL_GPL(save_stack_trace);
 #endif

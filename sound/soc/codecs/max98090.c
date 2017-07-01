@@ -588,94 +588,10 @@ static struct {
 static int max98090_volatile_register(struct snd_soc_codec *codec,
 	unsigned int reg)
 {
-	switch (reg) {
-	case M98090_REG_SOFTWARE_RESET:
-	case M98090_REG_DEVICE_STATUS:
-	case M98090_REG_JACK_STATUS:
-	case M98090_REG_REVISION_ID:
-		return true;
-	default:
-		return false;
-	}
-}
-
-static bool max98090_readable_register(struct device *dev, unsigned int reg)
-{
-	switch (reg) {
-	case M98090_REG_DEVICE_STATUS:
-	case M98090_REG_JACK_STATUS:
-	case M98090_REG_INTERRUPT_S:
-	case M98090_REG_RESERVED:
-	case M98090_REG_LINE_INPUT_CONFIG:
-	case M98090_REG_LINE_INPUT_LEVEL:
-	case M98090_REG_INPUT_MODE:
-	case M98090_REG_MIC1_INPUT_LEVEL:
-	case M98090_REG_MIC2_INPUT_LEVEL:
-	case M98090_REG_MIC_BIAS_VOLTAGE:
-	case M98090_REG_DIGITAL_MIC_ENABLE:
-	case M98090_REG_DIGITAL_MIC_CONFIG:
-	case M98090_REG_LEFT_ADC_MIXER:
-	case M98090_REG_RIGHT_ADC_MIXER:
-	case M98090_REG_LEFT_ADC_LEVEL:
-	case M98090_REG_RIGHT_ADC_LEVEL:
-	case M98090_REG_ADC_BIQUAD_LEVEL:
-	case M98090_REG_ADC_SIDETONE:
-	case M98090_REG_SYSTEM_CLOCK:
-	case M98090_REG_CLOCK_MODE:
-	case M98090_REG_CLOCK_RATIO_NI_MSB:
-	case M98090_REG_CLOCK_RATIO_NI_LSB:
-	case M98090_REG_CLOCK_RATIO_MI_MSB:
-	case M98090_REG_CLOCK_RATIO_MI_LSB:
-	case M98090_REG_MASTER_MODE:
-	case M98090_REG_INTERFACE_FORMAT:
-	case M98090_REG_TDM_CONTROL:
-	case M98090_REG_TDM_FORMAT:
-	case M98090_REG_IO_CONFIGURATION:
-	case M98090_REG_FILTER_CONFIG:
-	case M98090_REG_DAI_PLAYBACK_LEVEL:
-	case M98090_REG_DAI_PLAYBACK_LEVEL_EQ:
-	case M98090_REG_LEFT_HP_MIXER:
-	case M98090_REG_RIGHT_HP_MIXER:
-	case M98090_REG_HP_CONTROL:
-	case M98090_REG_LEFT_HP_VOLUME:
-	case M98090_REG_RIGHT_HP_VOLUME:
-	case M98090_REG_LEFT_SPK_MIXER:
-	case M98090_REG_RIGHT_SPK_MIXER:
-	case M98090_REG_SPK_CONTROL:
-	case M98090_REG_LEFT_SPK_VOLUME:
-	case M98090_REG_RIGHT_SPK_VOLUME:
-	case M98090_REG_DRC_TIMING:
-	case M98090_REG_DRC_COMPRESSOR:
-	case M98090_REG_DRC_EXPANDER:
-	case M98090_REG_DRC_GAIN:
-	case M98090_REG_RCV_LOUTL_MIXER:
-	case M98090_REG_RCV_LOUTL_CONTROL:
-	case M98090_REG_RCV_LOUTL_VOLUME:
-	case M98090_REG_LOUTR_MIXER:
-	case M98090_REG_LOUTR_CONTROL:
-	case M98090_REG_LOUTR_VOLUME:
-	case M98090_REG_JACK_DETECT:
-	case M98090_REG_INPUT_ENABLE:
-	case M98090_REG_OUTPUT_ENABLE:
-	case M98090_REG_LEVEL_CONTROL:
-	case M98090_REG_DSP_FILTER_ENABLE:
-	case M98090_REG_BIAS_CONTROL:
-	case M98090_REG_DAC_CONTROL:
-	case M98090_REG_ADC_CONTROL:
-	case M98090_REG_DEVICE_SHUTDOWN:
-	case M98090_REG_EQUALIZER_BASE ... M98090_REG_EQUALIZER_BASE + 0x68:
-	case M98090_REG_RECORD_BIQUAD_BASE ... M98090_REG_RECORD_BIQUAD_BASE + 0x0E:
-	case M98090_REG_DMIC3_VOLUME:
-	case M98090_REG_DMIC4_VOLUME:
-	case M98090_REG_DMIC34_BQ_PREATTEN:
-	case M98090_REG_RECORD_TDM_SLOT:
-	case M98090_REG_SAMPLE_RATE:
-	case M98090_REG_DMIC34_BIQUAD_BASE ... M98090_REG_DMIC34_BIQUAD_BASE + 0x0E:
-	case M98090_REG_REVISION_ID:
-		return true;
-	default:
-		return false;
-	}
+	if (max98090_reg_access[reg].vol)
+		return 1;
+	else
+		return 0;
 }
 
 static int max98090_readable(struct snd_soc_codec *codec, unsigned int reg)
@@ -2179,13 +2095,6 @@ static const struct snd_soc_dapm_route max98090_audio_map[] = {
 
 	{"DACL", NULL, "LTENL Mux"},
 	{"DACR", NULL, "LTENR Mux"},
-
-	{"STENL Mux", "Sidetone Left", "ADCL"},
-	{"STENL Mux", "Sidetone Left", "DMICL"},
-	{"STENR Mux", "Sidetone Right", "ADCR"},
-	{"STENR Mux", "Sidetone Right", "DMICR"},
-	{"DACL", NULL, "STENL Mux"},
-	{"DACR", NULL, "STENL Mux"},
 
 	{"AIFINL", NULL, "SHDN"},
 	{"AIFINR", NULL, "SHDN"},
@@ -3848,26 +3757,7 @@ static int max98090_probe(struct snd_soc_codec *codec)
 
 	INIT_DELAYED_WORK(&max98090->jack_work, max98090_jack_work);
 
-	/* Enable jack detection */
-	snd_soc_write(codec, M98090_REG_JACK_DETECT,
-		M98090_JDETEN_MASK | M98090_JDEB_25MS);
-
-	/* Register for interrupts */
-	dev_dbg(codec->dev, "irq = %d\n", max98090->irq);
-
-	ret = devm_request_threaded_irq(codec->dev, max98090->irq, NULL,
-		max98090_interrupt, IRQF_TRIGGER_FALLING | IRQF_ONESHOT,
-		"max98090_interrupt", codec);
-	if (ret < 0) {
-		dev_err(codec->dev, "request_irq failed: %d\n",
-			ret);
-	}
-
-	/*
-	 * Clear any old interrupts.
-	 * An old interrupt ocurring prior to installing the ISR
-	 * can keep a new interrupt from generating a trigger.
-	 */
+	max98090_handle_pdata(codec);
 
 #ifdef MAX98090_HIGH_PERFORMANCE
 	/* High Performance */
@@ -3975,33 +3865,6 @@ static int __devexit max98090_i2c_remove(struct i2c_client *client)
 	kfree(i2c_get_clientdata(client));
 	return 0;
 }
-
-static int max98090_runtime_resume(struct device *dev)
-{
-	struct max98090_priv *max98090 = dev_get_drvdata(dev);
-
-	regcache_cache_only(max98090->regmap, false);
-
-	max98090_reset(max98090);
-
-	regcache_sync(max98090->regmap);
-
-	return 0;
-}
-
-static int max98090_runtime_suspend(struct device *dev)
-{
-	struct max98090_priv *max98090 = dev_get_drvdata(dev);
-
-	regcache_cache_only(max98090->regmap, true);
-
-	return 0;
-}
-
-static const struct dev_pm_ops max98090_pm = {
-	SET_RUNTIME_PM_OPS(max98090_runtime_suspend,
-		max98090_runtime_resume, NULL)
-};
 
 static const struct i2c_device_id max98090_i2c_id[] = {
 	{ "max98090", MAX98090 },
