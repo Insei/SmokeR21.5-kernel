@@ -920,7 +920,7 @@ static void print_constraints(struct regulator_dev *rdev)
 {
 	struct regulation_constraints *constraints = rdev->constraints;
 	unsigned int ramp_delay = 0;
-	char buf[110] = "";
+	char buf[160] = "";
 	int count = 0;
 	int ret;
 
