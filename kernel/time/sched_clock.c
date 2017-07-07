@@ -63,11 +63,11 @@ static inline u64 notrace cyc_to_ns(u64 cyc, u32 mult, u32 shift)
 	return (cyc * mult) >> shift;
 }
 
-unsigned long long notrace sched_clock(void)
+static unsigned long long notrace sched_clock_32(void)
 {
 	u64 epoch_ns;
-	u64 epoch_cyc;
-	u64 cyc;
+	u32 epoch_cyc;
+	u32 cyc;
 	unsigned long seq;
 
 	if (cd.suspended)
@@ -167,6 +167,8 @@ void __init sched_clock_register(u64 (*read)(void), int bits,
 
 	pr_debug("Registered %pF as sched_clock source\n", read);
 }
+
+unsigned long long __read_mostly (*sched_clock_func)(void) = sched_clock_32;
 
 void __init setup_sched_clock(u32 (*read)(void), int bits, unsigned long rate)
 {
