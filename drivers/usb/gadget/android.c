@@ -994,6 +994,7 @@ static struct android_usb_function nvusb_function = {
 	.init		= nvusb_function_init,
 	.cleanup	= nvusb_function_cleanup,
 	.bind_config	= nvusb_function_bind_config,
+};
 
 static int midi_function_init(struct android_usb_function *f,
 					struct usb_composite_dev *cdev)
