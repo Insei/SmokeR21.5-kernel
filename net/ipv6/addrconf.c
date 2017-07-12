@@ -3285,12 +3285,12 @@ static void addrconf_rs_timer(unsigned long data)
 	if (idev->if_flags & IF_RA_RCVD)
 		goto out;
 
-	spin_lock(&ifp->lock);
-	if (ifp->probes++ < idev->cnf.rtr_solicits || idev->cnf.rtr_solicits < 0) {
-		idev->rs_interval = rfc3315_s14_backoff_update(
-			idev->rs_interval, idev->cnf.rtr_solicit_max_interval);
-		/* The wait after the last probe can be shorter */
-		addrconf_mod_timer(ifp, AC_RS,
+	if (idev->rs_probes++ < idev->cnf.rtr_solicits) {
+		if (!__ipv6_get_lladdr(idev, &lladdr, IFA_F_TENTATIVE))
+			ndisc_send_rs(idev->dev, &lladdr,
+				      &in6addr_linklocal_allrouters);
+		else
+			goto out;
 
 		/* The wait after the last probe can be shorter */
 		addrconf_mod_rs_timer(idev, (idev->rs_probes ==
@@ -3511,13 +3511,14 @@ static void addrconf_dad_completed(struct inet6_ifaddr *ifp)
 		else
 			return;
 
-		spin_lock_bh(&ifp->lock);
-		ifp->idev->rs_interval = rfc3315_s14_backoff_init(
-			ifp->idev->cnf.rtr_solicit_interval);
-		ifp->probes = 1;
+		write_lock_bh(&ifp->idev->lock);
+		spin_lock(&ifp->lock);
+		ifp->idev->rs_probes = 1;
 		ifp->idev->if_flags |= IF_RS_SENT;
-		addrconf_mod_timer(ifp, AC_RS, ifp->idev->rs_interval);
-		spin_unlock_bh(&ifp->lock);
+		addrconf_mod_rs_timer(ifp->idev,
+				      ifp->idev->cnf.rtr_solicit_interval);
+		spin_unlock(&ifp->lock);
+		write_unlock_bh(&ifp->idev->lock);
 	}
 }
 
