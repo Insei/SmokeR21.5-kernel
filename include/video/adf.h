@@ -263,7 +263,10 @@ struct adf_device_ops {
 	int (*validate)(struct adf_device *dev, struct adf_post *cfg,
 			void **driver_state);
 	/* optional */
-	struct sync_fence *(*complete_fence)(struct adf_device *dev,
+	struct sync_fence *(*present_fence)(struct adf_device *dev,
+			struct adf_post *cfg, void *driver_state);
+	/* optional */
+	struct sync_fence *(*release_fence)(struct adf_device *dev,
 			struct adf_post *cfg, void *driver_state);
 	/* required */
 	void (*post)(struct adf_device *dev, struct adf_post *cfg,

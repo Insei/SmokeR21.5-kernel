@@ -200,7 +200,6 @@ static int adf_fbdev_post(struct adf_fbdev *fbdev)
 {
 	struct adf_buffer buf;
 	struct sync_fence *complete_fence;
-	int ret = 0;
 
 	memset(&buf, 0, sizeof(buf));
 	buf.overlay_engine = fbdev->eng;
@@ -215,15 +214,12 @@ static int adf_fbdev_post(struct adf_fbdev *fbdev)
 	buf.pitch[0] = fbdev->pitch;
 	buf.n_planes = 1;
 
-	complete_fence = adf_interface_simple_post(fbdev->intf, &buf);
-	if (IS_ERR(complete_fence)) {
-		ret = PTR_ERR(complete_fence);
-		goto done;
-	}
+	complete_fence = adf_interface_simple_post(fbdev->intf, &buf,
+			ADF_COMPLETE_FENCE_NONE);
+	if (IS_ERR(complete_fence))
+		return PTR_ERR(complete_fence);
 
-	sync_fence_put(complete_fence);
-done:
-	return ret;
+	return 0;
 }
 
 static const u16 vga_palette[][3] = {
@@ -348,6 +344,8 @@ static void adf_fbdev_fill_modelist(struct adf_fbdev *fbdev)
 	kfree(modelist);
 }
 
+static bool fbdev_opened_once;
+
 /**
  * adf_fbdev_open - default implementation of fbdev open op
  */
@@ -384,11 +382,15 @@ int adf_fbdev_open(struct fb_info *info, int user)
 		adf_fbdev_fill_modelist(fbdev);
 	}
 
-	ret = adf_fbdev_post(fbdev);
-	if (ret < 0) {
-		if (!fbdev->refcount)
-			adf_fb_destroy(fbdev);
-		goto done;
+	if (!fbdev_opened_once) {
+		fbdev_opened_once = true;
+	} else {
+		ret = adf_fbdev_post(fbdev);
+		if (ret < 0) {
+			if (!fbdev->refcount)
+				adf_fb_destroy(fbdev);
+			goto done;
+		}
 	}
 
 	fbdev->refcount++;

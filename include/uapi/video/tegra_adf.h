@@ -81,7 +81,7 @@ struct tegra_adf_flip_windowattr {
 	__u32	out_h;
 	__u32	z;
 	__u32	swap_interval;
-	struct timespec timestamp;
+	__s64	timestamp_ns;
 	__u32	flags;
 	__u8	global_alpha; /* requires TEGRA_ADF_FLIP_FLAG_GLOBAL_ALPHA */
 	/* log2(blockheight) for blocklinear format */
@@ -101,6 +101,19 @@ struct tegra_adf_flip {
 	__u16 dirty_rect[4]; /* x,y,w,h for partial screen update. 0 ignores */
 	struct tegra_adf_flip_windowattr win[0];
 };
+
+struct tegra_adf_proposed_bw {
+	__u8 win_num;
+	struct {
+		__u32 format;
+		__u32 w;
+		__u32 h;
+		struct tegra_adf_flip_windowattr attr;
+	} win[0];
+};
+
+#define TEGRA_ADF_SET_PROPOSED_BW \
+	_IOW(ADF_IOCTL_TYPE, ADF_IOCTL_NR_CUSTOM, struct tegra_adf_proposed_bw)
 
 enum {
 	TEGRA_DC_Y,
