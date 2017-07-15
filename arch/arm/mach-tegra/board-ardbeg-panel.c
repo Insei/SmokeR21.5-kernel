@@ -796,9 +796,9 @@ static struct tegra_panel *ardbeg_panel_configure(struct board_info *board_out,
 	return panel;
 }
 
+static struct tegra_panel *panel;
 static void ardbeg_panel_select(void)
 {
-	struct tegra_panel *panel = NULL;
 	struct board_info board;
 	struct board_info mainboard;
 	u8 dsi_instance;
@@ -850,6 +850,20 @@ static void ardbeg_panel_select(void)
 	}
 
 }
+
+void fs_panel_set_param(unsigned int param)
+{
+	if (panel == NULL)
+		pr_err("panel: error in %s(): panel point is NULL ! \n", __func__);
+	else {
+		if (panel->set_dispparam)
+			panel->set_dispparam(param);
+		else
+			pr_err("panel: error in %s(): panel->set_dispparam() point is NULL ! \n", __func__);
+	}
+	return;
+}
+EXPORT_SYMBOL(fs_panel_set_param);
 #endif
 
 int __init ardbeg_panel_init(void)

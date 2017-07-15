@@ -308,6 +308,44 @@ static void dsi_s_wqxga_7_9_dc_out_init(struct tegra_dc_out *dc)
 	dc->flags = DC_CTRL_MODE;
 }
 
+extern struct tegra_dsi_cmd *p_bist_cmd;
+extern u16 n_bist_cmd;
+static void dsi_s_wqxga_7_9_set_dispparam(unsigned int param)
+{
+	unsigned int temp;
+
+	temp = param & 0x0000000F;
+	switch (temp) {		/* Gamma */
+	case 0x1:	/* 22*/
+		break;
+	case 0x2:	/* 24 */
+		break;
+	case 0x3:	/* 25 */
+		break;
+	case 0xF:
+		break;
+	default:
+		break;
+	}
+
+
+	temp = param & 0x0000F000;
+	switch (temp) {
+	case 0xA000:
+		pr_info("panel: enable panel BIST mode \n");
+		p_bist_cmd = bist_cmd;
+		n_bist_cmd = ARRAY_SIZE(bist_cmd);
+		break;
+	case 0xB000:
+		pr_info("panel: return to normal mode from BIST mode \n");
+		p_bist_cmd = dsi_s_wqxga_7_9_init_cmd;
+		n_bist_cmd = ARRAY_SIZE(dsi_s_wqxga_7_9_init_cmd);
+		break;
+	default:
+		break;
+	}
+}
+
 static void dsi_s_wqxga_7_9_fb_data_init(struct tegra_fb_data *fb)
 {
 	fb->xres = dsi_s_wqxga_7_9_modes[0].h_active;
@@ -318,6 +356,7 @@ struct tegra_panel dsi_s_wqxga_7_9_x6 = {
 	.init_dc_out = dsi_s_wqxga_7_9_dc_out_init,
 	.init_fb_data = dsi_s_wqxga_7_9_fb_data_init,
 	.set_disp_device = dsi_s_wqxga_7_9_set_disp_device,
+	.set_dispparam = dsi_s_wqxga_7_9_set_dispparam,
 };
 EXPORT_SYMBOL(dsi_s_wqxga_7_9_x6);
 

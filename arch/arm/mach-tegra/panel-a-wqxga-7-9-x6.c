@@ -328,6 +328,62 @@ static void dsi_a_wqxga_7_9_dc_out_init(struct tegra_dc_out *dc)
 	dc->flags = DC_CTRL_MODE;
 }
 
+struct tegra_dsi_cmd *p_gamma_cmds = NULL;
+u32 n_gamma_cmds = 0;
+struct tegra_dsi_cmd *p_ce_cmds = NULL;
+u32 n_ce_cmds = 0;
+EXPORT_SYMBOL(p_gamma_cmds);
+EXPORT_SYMBOL(n_gamma_cmds);
+EXPORT_SYMBOL(p_ce_cmds);
+EXPORT_SYMBOL(n_ce_cmds);
+
+struct tegra_dsi_cmd *p_bist_cmd = NULL;
+u16 n_bist_cmd = 0;
+EXPORT_SYMBOL(p_bist_cmd);
+EXPORT_SYMBOL(n_bist_cmd);
+
+extern void tegra_dsi_set_dispparam(struct tegra_dsi_cmd *cmds, int cmds_cnt);
+
+static void dsi_a_wqxga_7_9_set_dispparam(unsigned int param)
+{
+	unsigned int temp;
+
+	temp = param & 0x0000000F;
+	switch (temp) {		/* Gamma */
+	case 0x1:	/* 22*/
+		tegra_dsi_set_dispparam(a_gamma_cmds, ARRAY_SIZE(a_gamma_cmds));
+		p_gamma_cmds = a_gamma_cmds;
+		n_gamma_cmds = ARRAY_SIZE(a_gamma_cmds);
+		pr_info("panel: %s() - set a_gamma_cmds\n", __func__);
+		break;
+	case 0x2:	/* 24 */
+		break;
+	case 0x3:	/* 25 */
+		break;
+	case 0xF:
+		break;
+	default:
+		break;
+	}
+
+
+	temp = param & 0x0000F000;
+	switch (temp) {		/* Other Func */
+	case 0xA000:
+		pr_info("panel: enable panel BIST mode \n");
+		p_bist_cmd = bist_cmd;
+		n_bist_cmd = ARRAY_SIZE(bist_cmd);
+		break;
+	case 0xB000:
+		pr_info("panel: return to normal mode from BIST mode \n");
+		p_bist_cmd = dsi_a_wqxga_7_9_init_cmd;
+		n_bist_cmd = ARRAY_SIZE(dsi_a_wqxga_7_9_init_cmd);
+		break;
+	default:
+		break;
+	}
+}
+
 static void dsi_a_wqxga_7_9_fb_data_init(struct tegra_fb_data *fb)
 {
 	fb->xres = dsi_a_wqxga_7_9_modes[0].h_active;
@@ -338,6 +394,7 @@ struct tegra_panel dsi_a_wqxga_7_9_x6 = {
 	.init_dc_out = dsi_a_wqxga_7_9_dc_out_init,
 	.init_fb_data = dsi_a_wqxga_7_9_fb_data_init,
 	.set_disp_device = dsi_a_wqxga_7_9_set_disp_device,
+	.set_dispparam = dsi_a_wqxga_7_9_set_dispparam,
 };
 EXPORT_SYMBOL(dsi_a_wqxga_7_9_x6);
 

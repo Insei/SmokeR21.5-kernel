@@ -3742,6 +3742,57 @@ fail:
 }
 EXPORT_SYMBOL(tegra_dsi_panel_sanity_check);
 
+void tegra_dsi_set_dispparam(struct tegra_dsi_cmd *cmds, int cmds_cnt)
+{
+	int i = 0;
+	struct tegra_dc *dc;
+	struct tegra_dc_dsi_data *dsi;
+	struct dsi_status *init_status;
+	int err = 0;
+	dc = tegra_dc_get_dc(0);
+	dsi = tegra_dc_get_outdata(dc);
+
+	if (cmds_cnt < 1)
+		return;
+
+	if (!dsi->enabled)
+		return;
+
+	mutex_lock(&dsi->host_lock);
+	tegra_dc_io_start(dc);
+	clk_prepare_enable(dsi->dsi_fixed_clk);
+
+	init_status = tegra_dsi_prepare_host_transmission(
+			dc, dsi, DSI_LP_OP_WRITE);
+	if (IS_ERR_OR_NULL(init_status)) {
+		err = PTR_ERR(init_status);
+		dev_err(&dc->ndev->dev, "DSI host config failed\n");
+		goto fail;
+	}
+
+	for (i = 0; i < cmds_cnt; i++) {
+		err = _tegra_dsi_write_data(dsi, &cmds[i]);
+		if (err < 0) {
+			dev_err(&dc->ndev->dev, "DSI nop write failed\n");
+			goto fail;
+		}
+		mdelay(1);
+	}
+
+fail:
+	err = tegra_dsi_restore_state(dc, dsi, init_status);
+	if (err < 0)
+		dev_err(&dc->ndev->dev, "Failed to restore prev state\n");
+	clk_disable_unprepare(dsi->dsi_fixed_clk);
+	tegra_dc_io_end(dc);
+	mutex_unlock(&dsi->host_lock);
+
+	pr_info("panel:  %s  returned!\n", __func__);
+	return ;
+}
+
+EXPORT_SYMBOL(tegra_dsi_set_dispparam);
+
 static int tegra_dsi_enter_ulpm(struct tegra_dc_dsi_data *dsi)
 {
 	u32 val;
@@ -3997,6 +4048,10 @@ fail:
 	mutex_unlock(&dsi->lock);
 }
 
+extern struct tegra_dsi_cmd *p_gamma_cmds;
+extern u32 n_gamma_cmds;
+extern struct tegra_dsi_cmd* p_bist_cmd;
+extern u16 n_bist_cmd;
 static void tegra_dc_dsi_postpoweron(struct tegra_dc *dc)
 {
 	struct tegra_dc_dsi_data *dsi = tegra_dc_get_outdata(dc);
@@ -4011,7 +4066,21 @@ static void tegra_dc_dsi_postpoweron(struct tegra_dc *dc)
 	if (dsi->enabled) {
 		if (dsi->info.lp00_pre_panel_wakeup)
 			tegra_dsi_pad_enable(dsi);
-
+		
+		if ((p_gamma_cmds != NULL) && (n_gamma_cmds != 0)) {
+				err = tegra_dsi_send_panel_cmd(dc, dsi, p_gamma_cmds, n_gamma_cmds);
+				if (err < 0) {
+					dev_err(&dc->ndev->dev, "dsi: error sending gamma cmd when dsi is enabled\n");
+					goto fail;
+				}
+				pr_info("panel: sending gamma cmd in %s() \n", __func__);
+		}
+	
+		if ((p_bist_cmd != NULL) && (n_bist_cmd != 0)) {
+			dsi->info.dsi_init_cmd = p_bist_cmd;
+			dsi->info.n_init_cmd = n_bist_cmd;
+		}
+		
 		err = tegra_dsi_send_panel_cmd(dc, dsi, dsi->info.dsi_init_cmd,
 							dsi->info.n_init_cmd);
 		if (err < 0) {

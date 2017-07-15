@@ -29,6 +29,7 @@ struct tegra_panel {
 	void (*init_fb_data)(struct tegra_fb_data *);
 	void (*init_cmu_data)(struct tegra_dc_platform_data *);
 	void (*set_disp_device)(struct platform_device *);
+	void (*set_dispparam) (unsigned int);
 	int (*register_bl_dev)(void);
 	int (*register_i2c_bridge)(void);
 };
