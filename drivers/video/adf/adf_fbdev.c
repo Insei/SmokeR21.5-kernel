@@ -344,8 +344,6 @@ static void adf_fbdev_fill_modelist(struct adf_fbdev *fbdev)
 	kfree(modelist);
 }
 
-static bool fbdev_opened_once;
-
 /**
  * adf_fbdev_open - default implementation of fbdev open op
  */
@@ -382,15 +380,11 @@ int adf_fbdev_open(struct fb_info *info, int user)
 		adf_fbdev_fill_modelist(fbdev);
 	}
 
-	if (!fbdev_opened_once) {
-		fbdev_opened_once = true;
-	} else {
-		ret = adf_fbdev_post(fbdev);
-		if (ret < 0) {
-			if (!fbdev->refcount)
-				adf_fb_destroy(fbdev);
-			goto done;
-		}
+	ret = adf_fbdev_post(fbdev);
+	if (ret < 0) {
+		if (!fbdev->refcount)
+			adf_fb_destroy(fbdev);
+		goto done;
 	}
 
 	fbdev->refcount++;
