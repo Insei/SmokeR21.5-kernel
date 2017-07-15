@@ -633,21 +633,83 @@ static void ardbeg_usb_init(void)
 	struct board_info bi;
 	tegra_get_pmu_board_info(&bi);
 
-	if (board_info.sku == 1100)
+	if (board_info.sku == 1100 || board_info.board_id == BOARD_P1761 ||
+					board_info.board_id == BOARD_E1784)
 		tegra_ehci1_utmi_pdata.u_data.host.turn_off_vbus_on_lp0 = true;
 
-	if (board_info.board_id == BOARD_E1780) {
+	if (board_info.board_id == BOARD_PM359 ||
+			board_info.board_id == BOARD_PM358 ||
+			board_info.board_id == BOARD_PM370 ||
+			board_info.board_id == BOARD_PM374 ||
+			board_info.board_id == BOARD_PM375 ||
+			board_info.board_id == BOARD_PM377 ||
+			board_info.board_id == BOARD_PM363) {
+		/* Laguna */
+		/* Host cable is detected through AMS PMU Interrupt */
+		if (board_info.major_revision >= 'A' &&
+			board_info.major_revision <= 'D' &&
+			board_info.board_id == BOARD_PM375) {
+			tegra_udc_pdata.id_det_type = TEGRA_USB_VIRTUAL_ID;
+			tegra_ehci1_utmi_pdata.id_det_type =
+						TEGRA_USB_VIRTUAL_ID;
+		} else {
+			tegra_udc_pdata.id_det_type = TEGRA_USB_PMU_ID;
+			tegra_ehci1_utmi_pdata.id_det_type = TEGRA_USB_PMU_ID;
+		}
+		tegra_ehci1_utmi_pdata.id_extcon_dev_name = "as3722-extcon";
+	} else {
+		/* Ardbeg and TN8 */
 
 		/*
-		 * Set the maximum voltage that can be supplied
-		 * over USB vbus that the board supports if we use
-		 * a quick charge 2 wall charger.
+		 * TN8 supports vbus changing and it can handle
+		 * vbus voltages larger then 5V.  Enable this.
 		 */
-		tegra_udc_pdata.qc2_voltage = TEGRA_USB_QC2_12V;
-		tegra_udc_pdata.u_data.dev.qc2_current_limit_ma = 1300;
+		if (board_info.board_id == BOARD_P1761 ||
+			board_info.board_id == BOARD_E1784 ||
+			board_info.board_id == BOARD_E1780) {
 
-		/* charger needs to be set to 3A - h/w will do 2A  */
-		tegra_udc_pdata.u_data.dev.dcp_current_limit_ma = 3000;
+			/*
+			 * Set the maximum voltage that can be supplied
+			 * over USB vbus that the board supports if we use
+			 * a quick charge 2 wall charger.
+			 */
+			tegra_udc_pdata.qc2_voltage = TEGRA_USB_QC2_12V;
+			tegra_udc_pdata.u_data.dev.qc2_current_limit_ma = 1300;
+
+			/* charger needs to be set to 3A - h/w will do 2A  */
+			tegra_udc_pdata.u_data.dev.dcp_current_limit_ma = 3000;
+		}
+
+		switch (bi.board_id) {
+		case BOARD_E1733:
+			/* Host cable is detected through PMU Interrupt */
+			tegra_udc_pdata.id_det_type = TEGRA_USB_PMU_ID;
+			tegra_ehci1_utmi_pdata.id_det_type = TEGRA_USB_PMU_ID;
+			tegra_ehci1_utmi_pdata.id_extcon_dev_name =
+							 "as3722-extcon";
+			break;
+		case BOARD_E1736:
+		case BOARD_E1769:
+		case BOARD_E1735:
+		case BOARD_E1936:
+		case BOARD_P1761:
+			/* Device cable is detected through PMU Interrupt */
+			tegra_udc_pdata.support_pmu_vbus = true;
+			tegra_udc_pdata.vbus_extcon_dev_name = "palmas-extcon";
+			tegra_ehci1_utmi_pdata.support_pmu_vbus = true;
+			tegra_ehci1_utmi_pdata.vbus_extcon_dev_name =
+							 "palmas-extcon";
+			/* Host cable is detected through PMU Interrupt */
+			tegra_udc_pdata.id_det_type = TEGRA_USB_PMU_ID;
+			tegra_ehci1_utmi_pdata.id_det_type = TEGRA_USB_PMU_ID;
+			tegra_ehci1_utmi_pdata.id_extcon_dev_name =
+							 "palmas-extcon";
+		}
+
+		/* Enable Y-Cable support */
+		if (bi.board_id == BOARD_P1761)
+			tegra_ehci1_utmi_pdata.u_data.host.support_y_cable =
+							true;
 	}
 
 	if (!(usb_port_owner_info & UTMI1_PORT_OWNER_XUSB)) {
