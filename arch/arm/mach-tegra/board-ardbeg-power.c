@@ -322,6 +322,13 @@ int __init ardbeg_regulator_init(void)
 
 	tegra_get_pmu_board_info(&pmu_board_info);
 
+	if (of_machine_is_compatible("nvidia,mocha")) {
+		regulator_has_full_constraints();
+		tn8_regulator_init();
+		ardbeg_cl_dvfs_init(&pmu_board_info);
+		return 0;
+	}
+
 	switch (pmu_board_info.board_id) {
 	case BOARD_E1733:
 	case BOARD_E1734:

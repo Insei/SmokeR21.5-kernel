@@ -162,6 +162,13 @@ config MACH_ARDBEG
        select SYSEDP_FRAMEWORK
        help
          Support for NVIDIA ARDBEG Development platform
+         
+config MACH_MOCHA
+       bool "MOCHA board"
+       depends on ARCH_TEGRA_12x_SOC 
+       select CONFIG_SND_SOC_TEGRA_RT5671 if SND_SOC
+       help
+         Support for NVIDIA ARDBEG Development platform
 
 config MACH_LOKI
        bool "Loki board"

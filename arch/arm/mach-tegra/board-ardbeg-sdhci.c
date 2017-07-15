@@ -421,6 +421,7 @@ static int __init ardbeg_wifi_prepower(void)
 		!of_machine_is_compatible("nvidia,laguna") &&
 		!of_machine_is_compatible("nvidia,ardbeg_sata") &&
 		!of_machine_is_compatible("nvidia,tn8") &&
+		!of_machine_is_compatible("nvidia,mocha") &&
 		!of_machine_is_compatible("nvidia,norrin") &&
 		!of_machine_is_compatible("nvidia,bowmore") &&
 		!of_machine_is_compatible("nvidia,jetson-tk1"))

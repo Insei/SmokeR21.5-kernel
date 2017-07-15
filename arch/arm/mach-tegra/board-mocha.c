@@ -1,8 +1,10 @@
 /*
- * arch/arm/mach-tegra/board-ardbeg.c
+ * arch/arm/mach-tegra/board-mocha.c
  *
  * Copyright (c) 2013-2015, NVIDIA CORPORATION.  All rights reserved.
- *
+ * Copyright (c) 2017, MIPAD1 Dev.
+ * BOARD: E1780
+ * 
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
@@ -631,83 +633,21 @@ static void ardbeg_usb_init(void)
 	struct board_info bi;
 	tegra_get_pmu_board_info(&bi);
 
-	if (board_info.sku == 1100 || board_info.board_id == BOARD_P1761 ||
-					board_info.board_id == BOARD_E1784)
+	if (board_info.sku == 1100)
 		tegra_ehci1_utmi_pdata.u_data.host.turn_off_vbus_on_lp0 = true;
 
-	if (board_info.board_id == BOARD_PM359 ||
-			board_info.board_id == BOARD_PM358 ||
-			board_info.board_id == BOARD_PM370 ||
-			board_info.board_id == BOARD_PM374 ||
-			board_info.board_id == BOARD_PM375 ||
-			board_info.board_id == BOARD_PM377 ||
-			board_info.board_id == BOARD_PM363) {
-		/* Laguna */
-		/* Host cable is detected through AMS PMU Interrupt */
-		if (board_info.major_revision >= 'A' &&
-			board_info.major_revision <= 'D' &&
-			board_info.board_id == BOARD_PM375) {
-			tegra_udc_pdata.id_det_type = TEGRA_USB_VIRTUAL_ID;
-			tegra_ehci1_utmi_pdata.id_det_type =
-						TEGRA_USB_VIRTUAL_ID;
-		} else {
-			tegra_udc_pdata.id_det_type = TEGRA_USB_PMU_ID;
-			tegra_ehci1_utmi_pdata.id_det_type = TEGRA_USB_PMU_ID;
-		}
-		tegra_ehci1_utmi_pdata.id_extcon_dev_name = "as3722-extcon";
-	} else {
-		/* Ardbeg and TN8 */
+	if (board_info.board_id == BOARD_E1780) {
 
 		/*
-		 * TN8 supports vbus changing and it can handle
-		 * vbus voltages larger then 5V.  Enable this.
+		 * Set the maximum voltage that can be supplied
+		 * over USB vbus that the board supports if we use
+		 * a quick charge 2 wall charger.
 		 */
-		if (board_info.board_id == BOARD_P1761 ||
-			board_info.board_id == BOARD_E1784 ||
-			board_info.board_id == BOARD_E1780) {
+		tegra_udc_pdata.qc2_voltage = TEGRA_USB_QC2_12V;
+		tegra_udc_pdata.u_data.dev.qc2_current_limit_ma = 1300;
 
-			/*
-			 * Set the maximum voltage that can be supplied
-			 * over USB vbus that the board supports if we use
-			 * a quick charge 2 wall charger.
-			 */
-			tegra_udc_pdata.qc2_voltage = TEGRA_USB_QC2_12V;
-			tegra_udc_pdata.u_data.dev.qc2_current_limit_ma = 1300;
-
-			/* charger needs to be set to 3A - h/w will do 2A  */
-			tegra_udc_pdata.u_data.dev.dcp_current_limit_ma = 3000;
-		}
-
-		switch (bi.board_id) {
-		case BOARD_E1733:
-			/* Host cable is detected through PMU Interrupt */
-			tegra_udc_pdata.id_det_type = TEGRA_USB_PMU_ID;
-			tegra_ehci1_utmi_pdata.id_det_type = TEGRA_USB_PMU_ID;
-			tegra_ehci1_utmi_pdata.id_extcon_dev_name =
-							 "as3722-extcon";
-			break;
-		case BOARD_E1736:
-		case BOARD_E1769:
-		case BOARD_E1735:
-		case BOARD_E1936:
-		case BOARD_P1761:
-			/* Device cable is detected through PMU Interrupt */
-			tegra_udc_pdata.support_pmu_vbus = true;
-			tegra_udc_pdata.vbus_extcon_dev_name = "palmas-extcon";
-			tegra_ehci1_utmi_pdata.support_pmu_vbus = true;
-			tegra_ehci1_utmi_pdata.vbus_extcon_dev_name =
-							 "palmas-extcon";
-			/* Host cable is detected through PMU Interrupt */
-			tegra_udc_pdata.id_det_type = TEGRA_USB_PMU_ID;
-			tegra_ehci1_utmi_pdata.id_det_type = TEGRA_USB_PMU_ID;
-			tegra_ehci1_utmi_pdata.id_extcon_dev_name =
-							 "palmas-extcon";
-		}
-
-		/* Enable Y-Cable support */
-		if (bi.board_id == BOARD_P1761)
-			tegra_ehci1_utmi_pdata.u_data.host.support_y_cable =
-							true;
+		/* charger needs to be set to 3A - h/w will do 2A  */
+		tegra_udc_pdata.u_data.dev.dcp_current_limit_ma = 3000;
 	}
 
 	if (!(usb_port_owner_info & UTMI1_PORT_OWNER_XUSB)) {
@@ -1025,8 +965,124 @@ static struct i2c_board_info s7040_device_info[] __initdata = {
  	},
  };	
 
+#ifdef CONFIG_TOUCHSCREEN_ATMEL_MXT
+
+#include "mxT1664T.h"
+#include "mxT1066T.h"
+#define MXT1664T_FIRMWARE		"mxt1664t_fw"
+#define MXT1066T_FIRMWARE		"mxt1066t_fw"
+#define MXT1664T_LENS_CONFIG_NO_DUMMY		"mxt1664t_lens_config_no_dummy.cfg"
+#define MXT1664T_LENS_CONFIG_WITH_DUMMY		"mxt1664t_lens_config_with_dummy.cfg"
+#define MXT1066T_LENS_CONFIG			"mxt1066t_lens_config.cfg"
+
+static unsigned char mXT1664T_lens_config_no_dummy[] = {
+	#include "mxt_lens_1664t_config_no_dummy.h"
+};
+
+static unsigned char mXT1664T_lens_config_with_dummy[] = {
+	#include "mxt_lens_1664t_config_with_dummy.h"
+};
+
+static unsigned char mXT1066T_lens_config[] = {
+	#include "mxt_lens_1066t_config.h"
+};
+
+DECLARE_BUILTIN_FIRMWARE_SIZE(MXT1664T_FIRMWARE, mXT1664Tfw, sizeof(mXT1664Tfw)-1);
+DECLARE_BUILTIN_FIRMWARE_SIZE(MXT1066T_FIRMWARE, mXT1066Tfw, sizeof(mXT1066Tfw)-1);
+DECLARE_BUILTIN_FIRMWARE_SIZE(MXT1664T_LENS_CONFIG_NO_DUMMY, \
+						mXT1664T_lens_config_no_dummy, \
+						sizeof(mXT1664T_lens_config_no_dummy)-1);
+DECLARE_BUILTIN_FIRMWARE_SIZE(MXT1664T_LENS_CONFIG_WITH_DUMMY, \
+						mXT1664T_lens_config_with_dummy, \
+						sizeof(mXT1664T_lens_config_with_dummy)-1);
+DECLARE_BUILTIN_FIRMWARE_SIZE(MXT1066T_LENS_CONFIG, \
+						mXT1066T_lens_config, \
+						sizeof(mXT1066T_lens_config)-1);
+
+static int mxt_lens_1664t_key_codes[MXT_KEYARRAY_MAX_KEYS] = {
+	KEY_BACK, KEY_HOME, KEY_MENU, KEY_POWER,
+};
+
+static int mxt_lens_1066t_key_codes[MXT_KEYARRAY_MAX_KEYS] = {
+	KEY_MENU, KEY_HOME, KEY_BACK, KEY_POWER,
+};
+
+static struct mxt_config_info mxt_config_array[] = {
+	{
+		.family_id	= 0xA4,
+		.variant_id	= 0x04,
+		.version	= 0x10,
+		.build		= 0xAA,
+		.user_id	= 0x00,
+		.bootldr_id	= 0x48,
+		.mxt_cfg_name	= MXT1664T_LENS_CONFIG_NO_DUMMY,
+		.vendor_id	= 0x4,
+		.key_codes		= mxt_lens_1664t_key_codes,
+		.key_num		= 4,
+		.mxt_fw_name		= MXT1664T_FIRMWARE,
+	},
+	{
+		.family_id	= 0xA4,
+		.variant_id	= 0x04,
+		.version	= 0x10,
+		.build		= 0xAA,
+		.user_id	= 0xAA,
+		.bootldr_id	= 0x48,
+		.mxt_cfg_name	= MXT1664T_LENS_CONFIG_WITH_DUMMY,
+		.vendor_id	= 0x4,
+		.key_codes		= mxt_lens_1664t_key_codes,
+		.key_num		= 4,
+		.mxt_fw_name		= MXT1664T_FIRMWARE,
+	},
+	{
+		.family_id	= 0xA4,
+		.variant_id	= 0x0B,
+		.version	= 0x12,
+		.build		= 0xAA,
+		.user_id	= 0x00,
+		.bootldr_id	= 0x51,
+		.mxt_cfg_name	= MXT1066T_LENS_CONFIG,
+		.vendor_id	= 0x4,
+		.key_codes		= mxt_lens_1066t_key_codes,
+		.key_num		= 4,
+		.mxt_fw_name		= MXT1066T_FIRMWARE,
+	},
+};
+
+static struct mxt_platform_data mxt_platform_data = {
+	.config_array		= mxt_config_array,
+	.config_array_size		= ARRAY_SIZE(mxt_config_array),
+	.irqflags		= IRQF_TRIGGER_LOW | IRQF_ONESHOT,
+	.power_gpio		= -1,
+	.reset_gpio		= TP_GPIO_RESET,
+	.irq_gpio		= TP_GPIO_INTR,
+	.gpio_mask		= 0xc,
+	.vendor_info		= 0x03eb,
+	.product_info		= 0x214f,
+};
+
+static struct i2c_board_info mxt_device_info[] __initdata = {
+	{
+		I2C_BOARD_INFO("atmel_mxt_ts", 0x4a),
+		.platform_data = &mxt_platform_data,
+	},
+};
+
+#endif
+
 static int __init ardbeg_touch_init(void)
-{	
+{
+#ifdef CONFIG_TOUCHSCREEN_ATMEL_MXT	
+	int i;
+	
+	pr_info(" %s init atmel touch\n", __func__);
+	for (i = 0; i < ARRAY_SIZE(mxt_device_info); i++) {
+		mxt_device_info[i].irq = gpio_to_irq(TP_GPIO_INTR);
+	}		
+
+	i2c_register_board_info(3, mxt_device_info, ARRAY_SIZE(mxt_device_info));			
+#endif		
+	pr_info(" %s init synaptics touch\n", __func__);
 	i2c_register_board_info(3, s7040_device_info, ARRAY_SIZE(s7040_device_info));
 
 	return 0;
@@ -1038,28 +1094,11 @@ static void __init ardbeg_sysedp_init(void)
 
 	tegra_get_board_info(&bi);
 
-	switch (bi.board_id) {
-	case BOARD_E1780:
-		if (bi.sku == 1100) {
-			tn8_new_sysedp_init();
-		}
-		else
-			shield_new_sysedp_init();
-		break;
-	case BOARD_E1971:
-	case BOARD_E1922:
-	case BOARD_E1784:
-	case BOARD_P1761:
-	case BOARD_P1765:
+	if (bi.sku == 1100) {
 		tn8_new_sysedp_init();
-		break;
-	case BOARD_PM358:
-	case BOARD_PM359:
-	case BOARD_PM375:
-	case BOARD_PM377:
-	default:
-		break;
 	}
+	else
+		shield_new_sysedp_init();
 }
 
 static void __init ardbeg_sysedp_dynamic_capping_init(void)
@@ -1068,27 +1107,11 @@ static void __init ardbeg_sysedp_dynamic_capping_init(void)
 
 	tegra_get_board_info(&bi);
 
-	switch (bi.board_id) {
-	case BOARD_E1780:
-		if (bi.sku == 1100)
-			tn8_sysedp_dynamic_capping_init();
-		else
-			shield_sysedp_dynamic_capping_init();
-		break;
-	case BOARD_E1971:
-	case BOARD_E1922:
-	case BOARD_E1784:
-	case BOARD_P1761:
-	case BOARD_P1765:
+	if (bi.sku == 1100)
+		/* For me(Insei | DbIm) SKU is 1100 */
 		tn8_sysedp_dynamic_capping_init();
-		break;
-	case BOARD_PM358:
-	case BOARD_PM359:
-	case BOARD_PM375:
-	case BOARD_PM377:
-	default:
-		break;
-	}
+	else
+		shield_sysedp_dynamic_capping_init();
 }
 
 static void __init ardbeg_sysedp_batmon_init(void)
@@ -1100,18 +1123,8 @@ static void __init ardbeg_sysedp_batmon_init(void)
 
 	tegra_get_board_info(&bi);
 
-	switch (bi.board_id) {
-	case BOARD_E1780:
-		if (bi.sku != 1100)
-			shield_sysedp_batmon_init();
-		break;
-	case BOARD_PM358:
-	case BOARD_PM359:
-	case BOARD_PM375:
-	case BOARD_PM377:
-	default:
-		break;
-	}
+	if (bi.sku != 1100)
+		shield_sysedp_batmon_init();
 }
 
 
@@ -1122,30 +1135,10 @@ static void __init edp_init(void)
 
 	tegra_get_board_info(&bi);
 
-	switch (bi.board_id) {
-	case BOARD_E1780:
-		if (bi.sku == 1100)
-			tn8_edp_init();
-		else
-			ardbeg_edp_init();
-		break;
-	case BOARD_P1761:
-			tn8_edp_init();
-			break;
-	case BOARD_PM358:
-	case BOARD_PM359:
-	case BOARD_PM377:
-			laguna_edp_init();
-			break;
-	case BOARD_P2530:
-	case BOARD_E2548:
-			loki_edp_init();
-			break;
-	case BOARD_PM375:
-	default:
-			ardbeg_edp_init();
-			break;
-	}
+	if (bi.sku == 1100)
+		tn8_edp_init();
+	else
+		ardbeg_edp_init();
 }
 
 static void __init tegra_ardbeg_early_init(void)
@@ -1153,22 +1146,9 @@ static void __init tegra_ardbeg_early_init(void)
 	ardbeg_sysedp_init();
 	tegra_clk_init_from_table(ardbeg_clk_init_table);
 	tegra_clk_verify_parents();
-	if (of_machine_is_compatible("nvidia,jetson-tk1"))
-		tegra_soc_device_init("jetson-tk1");
-	else if (of_machine_is_compatible("nvidia,laguna"))
-		tegra_soc_device_init("laguna");
-	else if (of_machine_is_compatible("nvidia,tn8"))
-		tegra_soc_device_init("tn8");
-	else if (of_machine_is_compatible("nvidia,ardbeg_sata"))
-		tegra_soc_device_init("ardbeg_sata");
-	else if (of_machine_is_compatible("nvidia,norrin"))
-		tegra_soc_device_init("norrin");
-	else if (of_machine_is_compatible("nvidia,bowmore"))
-		tegra_soc_device_init("bowmore");
-	else if (of_machine_is_compatible("nvidia,t132loki"))
-		tegra_soc_device_init("t132loki");
-	else
-		tegra_soc_device_init("ardbeg");
+
+	if (of_machine_is_compatible("nvidia,mocha"))
+		tegra_soc_device_init("mocha");
 }
 
 static struct tegra_io_dpd pexbias_io = {
@@ -1268,20 +1248,6 @@ static int __init tegra_jetson_sensorhub_init(void)
 
 late_initcall(tegra_jetson_sensorhub_init);
 #endif
-
-static struct platform_device bcm_ldisc_device = {
-     .name = "bcm_ldisc",
-     .id = -1,
-     .dev = {
- 
-     },
-};
- 
-void __init add_bcm_ldisc_device(void)
-{
- 	printk("%s",__func__);
- 	platform_device_register(&bcm_ldisc_device);
-}
 
 static void __init tegra_ardbeg_late_init(void)
 {
@@ -1388,7 +1354,7 @@ static void __init tegra_ardbeg_late_init(void)
 	ardbeg_sysedp_batmon_init();
 }
 
-static void __init tegra_ardbeg_init_early(void)
+static void __init tegra_mocha_init_early(void)
 {
 	tegra_get_board_info(&board_info);
 	if (board_info.board_id == BOARD_E2548 ||
@@ -1399,7 +1365,7 @@ static void __init tegra_ardbeg_init_early(void)
 	tegra12x_init_early();
 }
 
-static void __init tegra_ardbeg_dt_init(void)
+static void __init tegra_mocha_dt_init(void)
 {
 	tegra_get_board_info(&board_info);
 	tegra_get_display_board_info(&display_board_info);
@@ -1424,7 +1390,7 @@ static void __init tegra_ardbeg_dt_init(void)
 	tegra_ardbeg_late_init();
 }
 
-static void __init tegra_ardbeg_reserve(void)
+static void __init tegra_mocha_reserve(void)
 {
 #ifdef CONFIG_TEGRA_HDMI_PRIMARY
 	ulong tmp;
@@ -1455,157 +1421,21 @@ static void __init tegra_ardbeg_reserve(void)
 	tegra_reserve4(carveout_size, fb1_size, fb2_size, vpr_size);
 }
 
-static const char * const ardbeg_dt_board_compat[] = {
-	"nvidia,ardbeg",
+static const char * const mocha_dt_board_compat[] = {
+	"nvidia,mocha",
 	NULL
 };
 
-static const char * const laguna_dt_board_compat[] = {
-	"nvidia,laguna",
-	NULL
-};
-
-static const char * const tn8_dt_board_compat[] = {
-	"nvidia,tn8",
-	NULL
-};
-
-static const char * const ardbeg_sata_dt_board_compat[] = {
-	"nvidia,ardbeg_sata",
-	NULL
-};
-
-static const char * const norrin_dt_board_compat[] = {
-	"nvidia,norrin",
-	NULL
-};
-
-static const char * const bowmore_dt_board_compat[] = {
-	"nvidia,bowmore",
-	NULL
-};
-
-static const char * const loki_dt_board_compat[] = {
-	"nvidia,t132loki",
-	NULL
-};
-
-static const char * const jetson_dt_board_compat[] = {
-	"nvidia,jetson-tk1",
-	NULL
-};
-
-#ifdef CONFIG_ARCH_TEGRA_13x_SOC
-DT_MACHINE_START(LOKI, "t132loki")
+DT_MACHINE_START(MOCHA, "mocha")
 	.atag_offset	= 0x100,
 	.smp		= smp_ops(tegra_smp_ops),
 	.map_io		= tegra_map_common_io,
-	.reserve	= tegra_ardbeg_reserve,
-	.init_early	= tegra_ardbeg_init_early,
+	.reserve	= tegra_mocha_reserve,
+	.init_early	= tegra_mocha_init_early,
 	.init_irq	= irqchip_init,
 	.init_time	= clocksource_of_init,
-	.init_machine	= tegra_ardbeg_dt_init,
+	.init_machine	= tegra_mocha_dt_init,
 	.restart	= tegra_assert_system_reset,
-	.dt_compat	= loki_dt_board_compat,
-	.init_late      = tegra_init_late
-MACHINE_END
-#endif
-
-DT_MACHINE_START(LAGUNA, "laguna")
-	.atag_offset	= 0x100,
-	.smp		= smp_ops(tegra_smp_ops),
-	.map_io		= tegra_map_common_io,
-	.reserve	= tegra_ardbeg_reserve,
-	.init_early	= tegra_ardbeg_init_early,
-	.init_irq	= irqchip_init,
-	.init_time	= clocksource_of_init,
-	.init_machine	= tegra_ardbeg_dt_init,
-	.restart	= tegra_assert_system_reset,
-	.dt_compat	= laguna_dt_board_compat,
-	.init_late      = tegra_init_late
-MACHINE_END
-
-DT_MACHINE_START(TN8, "tn8")
-	.atag_offset	= 0x100,
-	.smp		= smp_ops(tegra_smp_ops),
-	.map_io		= tegra_map_common_io,
-	.reserve	= tegra_ardbeg_reserve,
-	.init_early	= tegra_ardbeg_init_early,
-	.init_irq	= irqchip_init,
-	.init_time	= clocksource_of_init,
-	.init_machine	= tegra_ardbeg_dt_init,
-	.restart	= tegra_assert_system_reset,
-	.dt_compat	= tn8_dt_board_compat,
-	.init_late      = tegra_init_late
-MACHINE_END
-
-DT_MACHINE_START(NORRIN, "norrin")
-	.atag_offset	= 0x100,
-	.smp		= smp_ops(tegra_smp_ops),
-	.map_io		= tegra_map_common_io,
-	.reserve	= tegra_ardbeg_reserve,
-	.init_early	= tegra_ardbeg_init_early,
-	.init_irq	= irqchip_init,
-	.init_time	= clocksource_of_init,
-	.init_machine	= tegra_ardbeg_dt_init,
-	.restart	= tegra_assert_system_reset,
-	.dt_compat	= norrin_dt_board_compat,
-	.init_late      = tegra_init_late
-MACHINE_END
-
-DT_MACHINE_START(BOWMORE, "bowmore")
-	.atag_offset	= 0x100,
-	.smp		= smp_ops(tegra_smp_ops),
-	.map_io		= tegra_map_common_io,
-	.reserve	= tegra_ardbeg_reserve,
-	.init_early	= tegra_ardbeg_init_early,
-	.init_irq	= irqchip_init,
-	.init_time	= clocksource_of_init,
-	.init_machine	= tegra_ardbeg_dt_init,
-	.restart	= tegra_assert_system_reset,
-	.dt_compat	= bowmore_dt_board_compat,
-	.init_late      = tegra_init_late
-MACHINE_END
-
-DT_MACHINE_START(ARDBEG, "ardbeg")
-	.atag_offset	= 0x100,
-	.smp		= smp_ops(tegra_smp_ops),
-	.map_io		= tegra_map_common_io,
-	.reserve	= tegra_ardbeg_reserve,
-	.init_early	= tegra_ardbeg_init_early,
-	.init_irq	= irqchip_init,
-	.init_time	= clocksource_of_init,
-	.init_machine	= tegra_ardbeg_dt_init,
-	.restart	= tegra_assert_system_reset,
-	.dt_compat	= ardbeg_dt_board_compat,
-	.init_late      = tegra_init_late
-MACHINE_END
-
-DT_MACHINE_START(ARDBEG_SATA, "ardbeg_sata")
-	.atag_offset	= 0x100,
-	.smp		= smp_ops(tegra_smp_ops),
-	.map_io		= tegra_map_common_io,
-	.reserve	= tegra_ardbeg_reserve,
-	.init_early	= tegra_ardbeg_init_early,
-	.init_irq	= irqchip_init,
-	.init_time	= clocksource_of_init,
-	.init_machine	= tegra_ardbeg_dt_init,
-	.restart	= tegra_assert_system_reset,
-	.dt_compat	= ardbeg_sata_dt_board_compat,
-	.init_late      = tegra_init_late
-
-MACHINE_END
-
-DT_MACHINE_START(JETSON_TK1, "jetson-tk1")
-	.atag_offset	= 0x100,
-	.smp		= smp_ops(tegra_smp_ops),
-	.map_io		= tegra_map_common_io,
-	.reserve	= tegra_ardbeg_reserve,
-	.init_early	= tegra_ardbeg_init_early,
-	.init_irq	= irqchip_init,
-	.init_time	= clocksource_of_init,
-	.init_machine	= tegra_ardbeg_dt_init,
-	.restart	= tegra_assert_system_reset,
-	.dt_compat	= jetson_dt_board_compat,
+	.dt_compat	= mocha_dt_board_compat,
 	.init_late      = tegra_init_late
 MACHINE_END

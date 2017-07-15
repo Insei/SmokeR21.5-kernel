@@ -217,7 +217,8 @@ int __init tn8_regulator_init(void)
 		(board_info.fab < BOARD_FAB_A02)) {
 		adc_tbl = adc_table_default;
 		adc_tbl_size = ARRAY_SIZE(adc_table_default);
-		platform_device_register(&gadc_thermal_battery);
+		if (!of_machine_is_compatible("nvidia,mocha"))
+			platform_device_register(&gadc_thermal_battery);
 	}
 
 	return 0;
