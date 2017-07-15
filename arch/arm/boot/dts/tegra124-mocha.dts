@@ -109,11 +109,6 @@
 			st,wakeup-gpio = <&gpio 144 0x00>;
 		};
 
-		bmp280@77 {
-			compatible = "bmp,bmp280";
-			reg = <0x77>;
-		};
-
 		isl29035@44 {
 			compatible = "intersil,isl29035";
 			reg = <0x44>;
@@ -125,47 +120,6 @@
 			als_lowthres = <0x0e00>;
 			als_highthres = <0xf800>;
 			als_sensitive = <25>;
-		};
-
-		akm09911@0c {
-			compatible = "akm,akm09911";
-			reg = <0x0c>;
-
-			akm,layout = <6>;
-			akm,gpio_rst = <132>;
-		};
-
-		mpu6515@68 {
-			compatible = "inven,mpu6515";
-			reg = <0x68>;
-			interrupt-parent = <&gpio>;
-			interrupts = <139 0x01>;
-
-			regulator_config = <0>;
-
-			fs_range = <0x00>;
-			axis_map_x = <0>;
-			axis_map_y = <1>;
-			axis_map_z = <2>;
-			negate_x = <0>;
-			negate_y = <1>;
-			negate_z = <1>;
-			poll_interval = <200>;
-			min_interval = <5>;
-
-			inven,secondary_type = "none";
-			inven,secondary_reg = <0x0C>;
-			inven,secondary_name = "ak8963";
-			inven,secondary_axis_map_x = <1>;
-			inven,secondary_axis_map_y = <0>;
-			inven,secondary_axis_map_z = <2>;
-			inven,secondary_negate_x = <0>;
-			inven,secondary_negate_y = <0>;
-			inven,secondary_negate_z = <1>;
-
-			inven,aux_type = "none";
-			inven,aux_reg = <0x76>;
-			inven,aus_name = "bmp280";
 		};
 	};
 
