@@ -41,12 +41,6 @@ struct tegra_adf_flip_data {
 	bool dirty_rect_valid;
 };
 
-struct tegra_adf_flip_data {
-	u32 syncpt_max[DC_N_WINDOWS];
-	__u16 dirty_rect[4];
-	bool dirty_rect_valid;
-};
-
 #define adf_dev_to_tegra(p) \
 	container_of(p, struct tegra_adf_info, base)
 
@@ -355,8 +349,7 @@ fail:
 
 static int tegra_adf_sanitize_flip_args(struct tegra_adf_info *adf_info,
 		struct adf_post *cfg,
-		struct tegra_adf_flip_windowattr *win, int win_num,
-		__u16 *dirty_rect[4])
+		struct tegra_adf_flip_windowattr *win, int win_num)
 {
 	struct device *dev = &adf_info->base.base.dev;
 	int i, used_windows = 0;
@@ -406,45 +399,6 @@ static int tegra_adf_sanitize_flip_args(struct tegra_adf_info *adf_info,
 		return -EINVAL;
 	}
 
-	if (*dirty_rect) {
-		unsigned int xoff = (*dirty_rect)[0];
-		unsigned int yoff = (*dirty_rect)[1];
-		unsigned int width = (*dirty_rect)[2];
-		unsigned int height = (*dirty_rect)[3];
-		struct tegra_dc *dc = adf_info->dc;
-
-		if ((!width && !height) || dc->mode.vmode == FB_VMODE_INTERLACED
-				|| !dc->out_ops || !dc->out_ops->partial_update
-				|| (!xoff && !yoff
-						&& (width == dc->mode.h_active)
-						&& (height == dc->mode.v_active))) {
-			/* Partial update undesired, unsupported,
-			 * or dirty_rect covers entire frame. */
-			*dirty_rect = 0;
-		} else {
-			if (!width || !height
-					|| (xoff + width) > dc->mode.h_active
-					|| (yoff + height) > dc->mode.v_active)
-				return -EINVAL;
-
-			/* Constraint 7: H/V_DISP_ACTIVE >= 16.
-			 * Make sure the minimal size of dirty region is 16*16.
-			 * If not, extend the dirty region. */
-			if (width < 16) {
-				width = (*dirty_rect)[2] = 16;
-				if (xoff + width > dc->mode.h_active)
-					(*dirty_rect)[0] = dc->mode.h_active
-							- width;
-			}
-			if (height < 16) {
-				height = (*dirty_rect)[3] = 16;
-				if (yoff + height > dc->mode.v_active)
-					(*dirty_rect)[1] = dc->mode.v_active
-							- height;
-			}
-		}
-	}
-
 	return 0;
 }
 
@@ -454,10 +408,9 @@ int tegra_adf_dev_validate(struct adf_device *dev, struct adf_post *cfg,
 	struct tegra_adf_flip *args = cfg->custom_data;
 	struct tegra_adf_info *adf_info = adf_dev_to_tegra(dev);
 	struct tegra_adf_flip_windowattr *win;
-	struct tegra_adf_flip_data *data;
 	unsigned int win_num;
 	size_t custom_data_size = sizeof(*args);
-	__u16 *dirty_rect;
+	u32 *syncpt_max;
 	int ret = 0;
 
 	if (cfg->custom_data_size < custom_data_size) {
@@ -477,31 +430,18 @@ int tegra_adf_dev_validate(struct adf_device *dev, struct adf_post *cfg,
 		return -EINVAL;
 	}
 
-	data = kzalloc(sizeof(*data), GFP_KERNEL);
-	if (!data) {
-		dev_err(dev->dev, "failed to allocate driver state\n");
-		return -ENOMEM;
-	}
-
-	dirty_rect = args->dirty_rect;
-	ret = tegra_adf_sanitize_flip_args(adf_info, cfg, win, win_num,
-			&dirty_rect);
-	if (ret < 0)
-		goto done;
-
-	if (dirty_rect) {
-		memcpy(data->dirty_rect, dirty_rect, sizeof(data->dirty_rect));
-		data->dirty_rect_valid = true;
-	}
+	ret = tegra_adf_sanitize_flip_args(adf_info, cfg, win, win_num);
+	if (ret)
+		return ret;
 
 	BUG_ON(win_num > DC_N_WINDOWS);
 
-done:
-	if (ret < 0)
-		kfree(data);
-	else
-		*driver_state = data;
-	return ret;
+	syncpt_max = kzalloc(win_num * sizeof(syncpt_max[0]), GFP_KERNEL);
+	if (!syncpt_max)
+		return -ENOMEM;
+
+	*driver_state = syncpt_max;
+	return 0;
 }
 
 static inline dma_addr_t tegra_adf_phys_addr(struct adf_buffer *buf,
@@ -616,7 +556,6 @@ static void tegra_adf_dev_post(struct adf_device *dev, struct adf_post *cfg,
 {
 	struct tegra_adf_info *adf_info = adf_dev_to_tegra(dev);
 	struct tegra_adf_flip *args = cfg->custom_data;
-	struct tegra_adf_flip_data *data = driver_state;
 	int win_num = args->win_num;
 	struct tegra_dc_win *wins[DC_N_WINDOWS];
 	int i, nr_win = 0;
@@ -703,8 +642,7 @@ static void tegra_adf_dev_post(struct adf_device *dev, struct adf_post *cfg,
 	}
 
 	if (!skip_flip) {
-		tegra_dc_update_windows(wins, nr_win,
-			data->dirty_rect_valid ? data->dirty_rect : NULL);
+		tegra_dc_update_windows(wins, nr_win);
 		/* TODO: implement swapinterval here */
 		tegra_dc_sync_windows(wins, nr_win);
 		if (!tegra_dc_has_multiple_dc())
@@ -718,7 +656,7 @@ static struct sync_fence *tegra_adf_dev_complete_fence(struct adf_device *dev,
 	struct tegra_adf_info *adf_info = adf_dev_to_tegra(dev);
 	struct tegra_adf_flip *args = cfg->custom_data;
 	struct tegra_adf_flip_windowattr *win = args->win;
-	struct tegra_adf_flip_data *data = driver_state;
+	u32 *syncpt_max = driver_state;
 	u32 syncpt_val;
 	int work_index = -1;
 	unsigned int win_num = args->win_num, i;
@@ -729,14 +667,14 @@ static struct sync_fence *tegra_adf_dev_complete_fence(struct adf_device *dev,
 		if (index < 0)
 			continue;
 
-		data->syncpt_max[i] = tegra_dc_incr_syncpt_max(adf_info->dc,
+		syncpt_max[i] = tegra_dc_incr_syncpt_max(adf_info->dc,
 				index);
 
 		/*
 		 * Any of these windows' syncpoints should be equivalent for
 		 * the client, so we just send back an arbitrary one of them
 		 */
-		syncpt_val = data->syncpt_max[i];
+		syncpt_val = syncpt_max[i];
 		work_index = index;
 	}
 	if (work_index < 0)
