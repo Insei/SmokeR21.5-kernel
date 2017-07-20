@@ -801,8 +801,8 @@ static int tegra_adf_intf_blank(struct adf_interface *intf, u8 state)
 		return 0;
 
 	case DRM_MODE_DPMS_STANDBY:
-		tegra_dc_blank(adf_info->dc, BLANK_ALL);
-		break;
+		tegra_dc_blank(adf_info->dc);
+		return 0;
 
 	case DRM_MODE_DPMS_SUSPEND:
 	case DRM_MODE_DPMS_OFF:
