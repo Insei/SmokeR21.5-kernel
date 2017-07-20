@@ -19,10 +19,8 @@
 #include <linux/gfp.h>
 #include <media/videobuf2-dma-contig.h>
 #include <video/adf.h>
-#include <video/adf_client.h>
 #include <video/adf_fbdev.h>
 #include <video/adf_format.h>
-#include <video/adf_memblock.h>
 
 #include "dc/dc_config.h"
 #include "dc/dc_priv.h"
@@ -32,12 +30,15 @@ struct tegra_adf_info {
 	struct adf_device		base;
 	struct adf_interface		intf;
 	struct adf_overlay_engine	eng;
-#if IS_ENABLED(CONFIG_ADF_TEGRA_FBDEV)
-	struct adf_fbdev		fbdev;
-#endif
 	struct tegra_dc			*dc;
 	struct tegra_fb_data		*fb_data;
 	void				*vb2_dma_conf;
+};
+
+struct tegra_adf_flip_data {
+	u32 syncpt_max[DC_N_WINDOWS];
+	__u16 dirty_rect[4];
+	bool dirty_rect_valid;
 };
 
 struct tegra_adf_flip_data {
@@ -251,7 +252,6 @@ int tegra_adf_process_hotplug_connected(struct tegra_adf_info *adf_info,
 
 void tegra_adf_process_hotplug_disconnected(struct tegra_adf_info *adf_info)
 {
-	adf_interface_blank(&adf_info->intf, DRM_MODE_DPMS_OFF);
 	adf_hotplug_notify_disconnected(&adf_info->intf);
 }
 
@@ -272,9 +272,7 @@ static int tegra_adf_dev_validate_custom_format(struct adf_device *dev,
 	u8 dc_fmt = tegra_adf_fourcc_to_dc_fmt(buf->format);
 
 	if (tegra_dc_is_yuv(dc_fmt)) {
-		u8 cpp[3] = { 1, 1, 1 };
-		return adf_format_validate_yuv(dev, buf, ARRAY_SIZE(cpp), 1, 2,
-				cpp);
+		return -EINVAL; /* TODO */
 	} else {
 		u8 cpp = tegra_dc_fmt_bpp(dc_fmt) / 8;
 		return adf_format_validate_rgb(dev, buf, cpp);
@@ -307,15 +305,10 @@ const u32 tegra_adf_formats[] = {
 	DRM_FORMAT_NV21,
 };
 
-static inline int test_bit_u32(int nr, const u32 *addr)
-{
-	return 1UL & (addr[nr / 32] >> (nr & 31));
-}
-
 static int tegra_adf_check_windowattr(struct tegra_adf_info *adf_info,
 		const struct tegra_adf_flip_windowattr *attr, u32 fourcc)
 {
-	u32 *addr;
+	long *addr;
 	struct tegra_dc *dc = adf_info->dc;
 	struct device *dev = &adf_info->base.base.dev;
 	u8 fmt = tegra_adf_fourcc_to_dc_fmt(fourcc);
@@ -328,7 +321,7 @@ static int tegra_adf_check_windowattr(struct tegra_adf_info *adf_info,
 		goto fail;
 	}
 	/* Check the window format */
-	if (!test_bit_u32(fmt, addr)) {
+	if (!test_bit(fmt, addr)) {
 		dev_err(dev,
 			"Color format of window %d is invalid.\n",
 			attr->win_index);
@@ -355,14 +348,6 @@ static int tegra_adf_check_windowattr(struct tegra_adf_info *adf_info,
 		/* TODO: also check current window blocklinear support */
 	}
 
-	if ((attr->flags & TEGRA_ADF_FLIP_FLAG_SCAN_COLUMN) &&
-			!tegra_dc_feature_has_scan_column(dc,
-					attr->win_index)) {
-		dev_err(&dc->ndev->dev, "rotation not supported for window %d.\n",
-				attr->win_index);
-		goto fail;
-	}
-
 	return 0;
 fail:
 	return -EINVAL;
@@ -374,7 +359,6 @@ static int tegra_adf_sanitize_flip_args(struct tegra_adf_info *adf_info,
 		__u16 *dirty_rect[4])
 {
 	struct device *dev = &adf_info->base.base.dev;
-	struct tegra_dc *dc = adf_info->dc;
 	int i, used_windows = 0;
 
 	if (win_num > DC_N_WINDOWS) {
@@ -391,8 +375,7 @@ static int tegra_adf_sanitize_flip_args(struct tegra_adf_info *adf_info,
 		if (index < 0)
 			continue;
 
-		if (index >= DC_N_WINDOWS ||
-				!test_bit(index, &dc->valid_windows)) {
+		if (index >= DC_N_WINDOWS) {
 			dev_err(dev, "invalid window index %u\n", index);
 			return -EINVAL;
 		}
@@ -404,7 +387,7 @@ static int tegra_adf_sanitize_flip_args(struct tegra_adf_info *adf_info,
 
 		if (buf_index >= 0) {
 			if (buf_index >= cfg->n_bufs) {
-				dev_err(dev, "invalid buffer index %d (n_bufs = %zu)\n",
+				dev_err(dev, "invalid buffer index %d (n_bufs = %u)\n",
 						buf_index, cfg->n_bufs);
 				return -EINVAL;
 			}
@@ -478,7 +461,7 @@ int tegra_adf_dev_validate(struct adf_device *dev, struct adf_post *cfg,
 	int ret = 0;
 
 	if (cfg->custom_data_size < custom_data_size) {
-		dev_err(dev->dev, "custom data size too small (%zu < %zu)\n",
+		dev_err(dev->dev, "custom data size too small (%u < %u)\n",
 				cfg->custom_data_size, custom_data_size);
 		return -EINVAL;
 	}
@@ -488,7 +471,7 @@ int tegra_adf_dev_validate(struct adf_device *dev, struct adf_post *cfg,
 
 	custom_data_size += win_num * sizeof(win[0]);
 	if (cfg->custom_data_size != custom_data_size) {
-		dev_err(dev->dev, "expected %zu bytes of custom data for %u windows, received %zu\n",
+		dev_err(dev->dev, "expected %u bytes of custom data for %u windows, received %u\n",
 				custom_data_size, args->win_num,
 				cfg->custom_data_size);
 		return -EINVAL;
@@ -525,21 +508,25 @@ static inline dma_addr_t tegra_adf_phys_addr(struct adf_buffer *buf,
 		struct adf_buffer_mapping *mapping,
 		size_t plane)
 {
-	struct scatterlist *sgl = buf->dma_bufs[plane] ?
-			mapping->sg_tables[plane]->sgl :
-			mapping->sg_tables[TEGRA_DC_Y]->sgl;
-
-	dma_addr_t addr = sg_dma_address(sgl);
-	if (!addr)
-		addr = sg_phys(sgl);
+	dma_addr_t addr = buf->dma_bufs[plane] ?
+			sg_dma_address(mapping->sg_tables[plane]->sgl) :
+			sg_dma_address(mapping->sg_tables[TEGRA_DC_Y]->sgl);
 	addr += buf->offset[plane];
 	return addr;
 }
 
-static void tegra_adf_set_windowattr_basic(struct tegra_dc_win *win,
+static void tegra_adf_set_windowattr(struct tegra_adf_info *adf_info,
+		struct tegra_dc_win *win,
 		const struct tegra_adf_flip_windowattr *attr,
-		u32 format, u32 w, u32 h)
+		struct adf_buffer *buf, struct adf_buffer_mapping *mapping)
 {
+	s64 timestamp_ns;
+
+	if (!buf) {
+		win->flags = 0;
+		return;
+	}
+
 	win->flags = TEGRA_WIN_FLAG_ENABLED;
 	if (attr->blend == TEGRA_DC_EXT_BLEND_PREMULT)
 		win->flags |= TEGRA_WIN_FLAG_BLEND_PREMULT;
@@ -570,38 +557,25 @@ static void tegra_adf_set_windowattr_basic(struct tegra_dc_win *win,
 		win->flags |= TEGRA_WIN_FLAG_INTERLACE;
 #endif
 
-	win->fmt = tegra_adf_fourcc_to_dc_fmt(format);
+	win->fmt = tegra_adf_fourcc_to_dc_fmt(buf->format);
 	win->x.full = attr->x;
 	win->y.full = attr->y;
-	win->w.full = dfixed_const(w);
-	win->h.full = dfixed_const(h);
+	win->w.full = dfixed_const(buf->w);
+	win->h.full = dfixed_const(buf->h);
 	/* XXX verify that this doesn't go outside display's active region */
 	win->out_x = attr->out_x;
 	win->out_y = attr->out_y;
 	win->out_w = attr->out_w;
 	win->out_h = attr->out_h;
 	win->z = attr->z;
-}
-
-static void tegra_adf_set_windowattr(struct tegra_adf_info *adf_info,
-		struct tegra_dc_win *win,
-		const struct tegra_adf_flip_windowattr *attr,
-		struct adf_buffer *buf, struct adf_buffer_mapping *mapping)
-{
-	if (!buf) {
-		win->flags = 0;
-		return;
-	}
-
-	tegra_adf_set_windowattr_basic(win, attr, buf->format, buf->w, buf->h);
-
-	win->stride = buf->pitch[0];
-	win->stride_uv = buf->pitch[1];
 
 	/* XXX verify that this won't read outside of the surface */
 	win->phys_addr = tegra_adf_phys_addr(buf, mapping, TEGRA_DC_Y);
 	win->phys_addr_u = tegra_adf_phys_addr(buf, mapping, TEGRA_DC_U);
 	win->phys_addr_v = tegra_adf_phys_addr(buf, mapping, TEGRA_DC_V);
+
+	win->stride = buf->pitch[0];
+	win->stride_uv = buf->pitch[1];
 
 #if defined(CONFIG_TEGRA_DC_INTERLACE)
 	if (adf_info->dc->mode.vmode == FB_VMODE_INTERLACED) {
@@ -618,7 +592,9 @@ static void tegra_adf_set_windowattr(struct tegra_adf_info *adf_info,
 #endif
 
 	if (tegra_platform_is_silicon()) {
-		dev_WARN_ONCE(&adf_info->base.base.dev, attr->timestamp_ns,
+		timestamp_ns = timespec_to_ns(&attr->timestamp);
+
+		dev_WARN_ONCE(&adf_info->base.base.dev, timestamp_ns,
 				"timestamping not implemented\n");
 		/* TODO: implement timestamping */
 #if 0
@@ -731,15 +707,13 @@ static void tegra_adf_dev_post(struct adf_device *dev, struct adf_post *cfg,
 			data->dirty_rect_valid ? data->dirty_rect : NULL);
 		/* TODO: implement swapinterval here */
 		tegra_dc_sync_windows(wins, nr_win);
-		tegra_dc_program_bandwidth(adf_info->dc, true);
 		if (!tegra_dc_has_multiple_dc())
 			tegra_dc_call_flip_callback();
 	}
 }
 
 static struct sync_fence *tegra_adf_dev_complete_fence(struct adf_device *dev,
-		struct adf_post *cfg, void *driver_state,
-		unsigned int timeline_offset)
+		struct adf_post *cfg, void *driver_state)
 {
 	struct tegra_adf_info *adf_info = adf_dev_to_tegra(dev);
 	struct tegra_adf_flip *args = cfg->custom_data;
@@ -768,20 +742,7 @@ static struct sync_fence *tegra_adf_dev_complete_fence(struct adf_device *dev,
 	if (work_index < 0)
 		return ERR_PTR(-EINVAL);
 
-	return tegra_dc_create_fence(adf_info->dc, work_index, syncpt_val +
-			timeline_offset);
-}
-
-static struct sync_fence *tegra_adf_dev_present_fence(struct adf_device *dev,
-		struct adf_post *cfg, void *driver_state)
-{
-	return tegra_adf_dev_complete_fence(dev, cfg, driver_state, 0);
-}
-
-static struct sync_fence *tegra_adf_dev_release_fence(struct adf_device *dev,
-		struct adf_post *cfg, void *driver_state)
-{
-	return tegra_adf_dev_complete_fence(dev, cfg, driver_state, 1);
+	return tegra_dc_create_fence(adf_info->dc, work_index, syncpt_val);
 }
 
 static void tegra_adf_dev_advance_timeline(struct adf_device *dev,
@@ -808,135 +769,10 @@ static void tegra_adf_dev_state_free(struct adf_device *dev, void *driver_state)
 	kfree(driver_state);
 }
 
-static int tegra_adf_sanitize_proposed_bw(struct tegra_adf_info *adf_info,
-		const struct tegra_adf_proposed_bw *bw, u8 win_num)
-{
-	struct device *dev = &adf_info->base.base.dev;
-	struct tegra_dc *dc = adf_info->dc;
-	u8 i;
-
-	if (win_num != bw->win_num)
-		return -EINVAL;
-
-	if (win_num > DC_N_WINDOWS) {
-		dev_err(dev, "too many windows (%u > %u)\n", win_num,
-				DC_N_WINDOWS);
-		return -EINVAL;
-	}
-
-	for (i = 0; i < win_num; i++) {
-		s32 index = bw->win[i].attr.win_index;
-
-		if (index < 0 ||
-				index >= DC_N_WINDOWS ||
-				!test_bit(index, &dc->valid_windows)) {
-			dev_err(dev, "invalid window index %u\n", index);
-			return -EINVAL;
-		}
-	}
-
-	return 0;
-}
-
-static int tegra_adf_negotiate_bw(struct tegra_adf_info *adf_info,
-			struct tegra_adf_proposed_bw *bw)
-{
-#ifdef CONFIG_TEGRA_ISOMGR
-	struct tegra_dc_win *dc_wins[DC_N_WINDOWS];
-	struct tegra_dc *dc = adf_info->dc;
-	struct adf_overlay_engine *eng = &adf_info->eng;
-	u8 i;
-
-	/* If display has been disconnected return with error. */
-	if (!dc->connected)
-		return -1;
-
-	for (i = 0; i < bw->win_num; i++) {
-		struct tegra_adf_flip_windowattr *attr = &bw->win[i].attr;
-		s32 idx = attr->win_index;
-
-		if (attr->buf_index >= 0) {
-			u32 fourcc = bw->win[i].format;
-			if (!adf_overlay_engine_supports_format(eng, fourcc)) {
-				char format_str[ADF_FORMAT_STR_SIZE];
-				adf_format_str(fourcc, format_str);
-				dev_err(&eng->base.dev, "%s: unsupported format %s\n",
-						__func__, format_str);
-				return -EINVAL;
-			}
-
-			tegra_adf_set_windowattr_basic(&dc->tmp_wins[idx],
-					attr, fourcc, bw->win[i].w,
-					bw->win[i].h);
-		} else {
-			dc->tmp_wins[i].flags = 0;
-		}
-
-		dc_wins[i] = &dc->tmp_wins[idx];
-	}
-
-	return tegra_dc_bandwidth_negotiate_bw(dc, dc_wins, bw->win_num);
-#else
-	return -EINVAL;
-#endif
-}
-
-static int tegra_adf_set_proposed_bw(struct tegra_adf_info *adf_info,
-			struct tegra_adf_proposed_bw __user *arg)
-{
-	u8 win_num;
-	size_t bw_size;
-	struct tegra_adf_proposed_bw *bw;
-	int ret;
-
-	if (get_user(win_num, &arg->win_num))
-		return -EFAULT;
-
-	bw_size = sizeof(*bw) + sizeof(bw->win[0]) * win_num;
-	bw = kmalloc(bw_size, GFP_KERNEL);
-	if (!bw)
-		return -ENOMEM;
-
-	if (copy_from_user(bw, arg, bw_size)) {
-		ret = -EFAULT;
-		goto done;
-	}
-
-	ret = tegra_adf_sanitize_proposed_bw(adf_info, bw, win_num);
-	if (ret < 0)
-		goto done;
-
-	ret = tegra_adf_negotiate_bw(adf_info, bw);
-done:
-	kfree(bw);
-	return ret;
-}
-
-static long tegra_adf_dev_ioctl(struct adf_obj *obj, unsigned int cmd,
-		unsigned long arg)
-{
-	struct adf_device *dev = adf_obj_to_device(obj);
-	struct tegra_adf_info *adf_info = adf_dev_to_tegra(dev);
-
-	switch (cmd) {
-	case TEGRA_ADF_SET_PROPOSED_BW:
-		return tegra_adf_set_proposed_bw(adf_info,
-				(struct tegra_adf_proposed_bw __user *)arg);
-
-	default:
-		return -ENOTTY;
-	}
-}
-
-
 void tegra_adf_process_vblank(struct tegra_adf_info *adf_info,
 		ktime_t timestamp)
 {
-	if (unlikely(!adf_info))
-		pr_debug("%s: suppressing vblank event since ADF is not finished probing\n",
-				__func__);
-	else
-		adf_vsync_notify(&adf_info->intf, timestamp);
+	adf_vsync_notify(&adf_info->intf, timestamp);
 }
 
 static bool tegra_adf_intf_supports_event(struct adf_obj *obj,
@@ -1017,22 +853,6 @@ static const char *tegra_adf_intf_type_str(struct adf_interface *intf)
 	}
 }
 
-static int tegra_adf_dpms_to_fb_blank(u8 dpms_state)
-{
-	switch (dpms_state) {
-	case DRM_MODE_DPMS_ON:
-		return FB_BLANK_UNBLANK;
-	case DRM_MODE_DPMS_STANDBY:
-		return FB_BLANK_HSYNC_SUSPEND;
-	case DRM_MODE_DPMS_SUSPEND:
-		return FB_BLANK_VSYNC_SUSPEND;
-	case DRM_MODE_DPMS_OFF:
-		return FB_BLANK_POWERDOWN;
-	default:
-		BUG();
-	}
-}
-
 static int tegra_adf_intf_blank(struct adf_interface *intf, u8 state)
 {
 	struct tegra_adf_info *adf_info = adf_intf_to_tegra(intf);
@@ -1040,7 +860,7 @@ static int tegra_adf_intf_blank(struct adf_interface *intf, u8 state)
 	switch (state) {
 	case DRM_MODE_DPMS_ON:
 		tegra_dc_enable(adf_info->dc);
-		break;
+		return 0;
 
 	case DRM_MODE_DPMS_STANDBY:
 		tegra_dc_blank(adf_info->dc, BLANK_ALL);
@@ -1049,7 +869,7 @@ static int tegra_adf_intf_blank(struct adf_interface *intf, u8 state)
 	case DRM_MODE_DPMS_SUSPEND:
 	case DRM_MODE_DPMS_OFF:
 		tegra_dc_disable(adf_info->dc);
-		break;
+		return 0;
 
 	default:
 		return -ENOTTY;
@@ -1078,7 +898,6 @@ static int tegra_adf_intf_alloc_simple_buffer(struct adf_interface *intf,
 	const struct vb2_mem_ops *mem_ops = &vb2_dma_contig_memops;
 	void *vb2_buf;
 	bool format_valid = false;
-	struct dma_buf *ret;
 
 	for (i = 0; i < ARRAY_SIZE(tegra_adf_formats); i++) {
 		if (tegra_adf_formats[i] == format) {
@@ -1098,12 +917,10 @@ static int tegra_adf_intf_alloc_simple_buffer(struct adf_interface *intf,
 	if (IS_ERR(vb2_buf))
 		return PTR_ERR(vb2_buf);
 
-	ret = mem_ops->get_dmabuf(vb2_buf);
+	*dma_buf = mem_ops->get_dmabuf(vb2_buf);
 	mem_ops->put(vb2_buf);
-	if (!ret)
+	if (!*dma_buf)
 		return -ENOMEM;
-	ret->file->f_mode |= FMODE_WRITE;
-	*dma_buf = ret;
 
 	return 0;
 }
@@ -1115,20 +932,14 @@ static int tegra_adf_intf_describe_simple_post(struct adf_interface *intf,
 	struct tegra_adf_flip *args = data;
 	int i;
 
-	args->win_num = 0;
-	for_each_set_bit(i, &adf_info->dc->valid_windows, DC_N_WINDOWS) {
-		struct tegra_adf_flip_windowattr *win =
-				&args->win[args->win_num];
-		win->win_index = i;
-		if (i == adf_info->fb_data->win) {
-			win->buf_index = 0;
-			win->out_w = intf->current_mode.hdisplay;
-			win->out_h = intf->current_mode.vdisplay;
-		} else {
-			win->buf_index = -1;
-		}
-		args->win_num++;
+	args->win_num = adf_info->dc->n_windows;
+	for (i = 0; i < adf_info->dc->n_windows; i++) {
+		args->win[i].win_index = i;
+		args->win[i].buf_index = -1;
 	}
+	args->win[1].buf_index = 0;
+	args->win[1].out_w = intf->current_mode.hdisplay;
+	args->win[1].out_h = intf->current_mode.vdisplay;
 
 	*size = sizeof(*args) + args->win_num * sizeof(args->win[0]);
 	return 0;
@@ -1159,12 +970,10 @@ struct adf_device_ops tegra_adf_dev_ops = {
 	.owner = THIS_MODULE,
 	.base = {
 		.custom_data = tegra_adf_dev_custom_data,
-		.ioctl = tegra_adf_dev_ioctl,
 	},
 	.validate_custom_format = tegra_adf_dev_validate_custom_format,
 	.validate = tegra_adf_dev_validate,
-	.present_fence = tegra_adf_dev_present_fence,
-	.release_fence = tegra_adf_dev_release_fence,
+	.complete_fence = tegra_adf_dev_complete_fence,
 	.post = tegra_adf_dev_post,
 	.advance_timeline = tegra_adf_dev_advance_timeline,
 	.state_free = tegra_adf_dev_state_free,
@@ -1192,91 +1001,28 @@ int tegra_adf_process_bandwidth_renegotiate(struct tegra_adf_info *adf_info,
 						struct tegra_dc_bw_data *bw)
 {
 	struct tegra_adf_event_bandwidth event;
-
-	if (unlikely(!adf_info)) {
-		pr_debug("%s: suppressing bandwidth event since ADF is not finished probing\n",
-				__func__);
-		return 0;
-	}
-
 	event.base.type = TEGRA_ADF_EVENT_BANDWIDTH_RENEGOTIATE;
 	event.base.length = sizeof(event);
-	if (bw == NULL) {
-		event.total_bw = 0;
-		event.avail_bw = 0;
-		event.resvd_bw = 0;
-	} else {
-		event.total_bw = bw->total_bw;
-		event.avail_bw = bw->avail_bw;
-		event.resvd_bw = bw->resvd_bw;
-	}
+	event.total_bw = bw->total_bw;
+	event.avail_bw = bw->avail_bw;
+	event.resvd_bw = bw->resvd_bw;
 	return adf_event_notify(&adf_info->base.base, &event.base);
-}
-
-struct fb_ops tegra_adf_fb_ops = {
-	.owner = THIS_MODULE,
-	.fb_open = adf_fbdev_open,
-	.fb_release = adf_fbdev_release,
-	.fb_check_var = adf_fbdev_check_var,
-	.fb_set_par = adf_fbdev_set_par,
-	.fb_blank = adf_fbdev_blank,
-	.fb_pan_display = adf_fbdev_pan_display,
-	.fb_mmap = adf_fbdev_mmap,
-};
-
-static void tegra_adf_save_bootloader_logo(struct tegra_adf_info *adf_info,
-            struct resource *fb_mem)
-{
-	struct device *dev = adf_info->base.dev;
-	struct adf_buffer logo;
-	struct sync_fence *fence;
-
-	memset(&logo, 0, sizeof(logo));
-	logo.dma_bufs[0] = adf_memblock_export(fb_mem->start,
-			resource_size(fb_mem), 0);
-	if (IS_ERR(logo.dma_bufs[0])) {
-		dev_warn(dev, "failed to export bootloader logo: %ld\n",
-				PTR_ERR(logo.dma_bufs[0]));
-		return;
-	}
-
-	logo.overlay_engine = &adf_info->eng;
-	logo.w = adf_info->fb_data->xres;
-	logo.h = adf_info->fb_data->yres;
-	logo.format = adf_info->fb_data->bits_per_pixel == 16 ?
-			DRM_FORMAT_RGB565 :
-			DRM_FORMAT_RGBA8888;
-	logo.pitch[0] = logo.w * adf_info->fb_data->bits_per_pixel / 8;
-	logo.n_planes = 1;
-
-	fence = adf_interface_simple_post(&adf_info->intf, &logo,
-			ADF_COMPLETE_FENCE_NONE);
-	if (IS_ERR(fence))
-		dev_warn(dev, "failed to post bootloader logo: %ld\n",
-				PTR_ERR(fence));
-
-	dma_buf_put(logo.dma_bufs[0]);
 }
 
 struct tegra_adf_info *tegra_adf_init(struct platform_device *ndev,
 		struct tegra_dc *dc,
-		struct tegra_fb_data *fb_data,
-		struct resource *fb_mem)
+		struct tegra_fb_data *fb_data)
 {
 	struct tegra_adf_info *adf_info;
 	int err;
 	enum adf_interface_type intf_type;
 	u32 intf_flags = 0;
-#if IS_ENABLED(CONFIG_ADF_TEGRA_FBDEV)
-	u32 fb_format;
-#endif
 
 	adf_info = kzalloc(sizeof(*adf_info), GFP_KERNEL);
 	if (!adf_info)
 		return ERR_PTR(-ENOMEM);
 
 	adf_info->dc = dc;
-	adf_info->fb_data = fb_data;
 
 	err = adf_device_init(&adf_info->base, &ndev->dev,
 			&tegra_adf_dev_ops, "%s", dev_name(&ndev->dev));
@@ -1302,16 +1048,6 @@ struct tegra_adf_info *tegra_adf_init(struct platform_device *ndev,
 	if (err < 0)
 		goto err_eng_init;
 
-#if IS_ENABLED(CONFIG_ADF_TEGRA_FBDEV)
-	fb_format = fb_data->bits_per_pixel == 16 ? DRM_FORMAT_RGB565 :
-			DRM_FORMAT_RGBA8888;
-	err = adf_fbdev_init(&adf_info->fbdev, &adf_info->intf,
-		&adf_info->eng, fb_data->xres, fb_data->yres * 2, fb_format,
-		&tegra_adf_fb_ops, "%s", dev_name(&ndev->dev));
-	if (err < 0)
-		goto err_fbdev;
-#endif
-
 	err = adf_attachment_allow(&adf_info->base, &adf_info->eng,
 			&adf_info->intf);
 	if (err < 0)
@@ -1330,21 +1066,11 @@ struct tegra_adf_info *tegra_adf_init(struct platform_device *ndev,
 	if (dc->enabled)
 		adf_info->intf.dpms_state = DRM_MODE_DPMS_ON;
 
-	if (fb_data->flags & TEGRA_FB_FLIP_ON_PROBE)
-		tegra_adf_save_bootloader_logo(adf_info, fb_mem);
-	else
-		memblock_free(fb_mem->start, resource_size(fb_mem));
-
 	dev_info(&ndev->dev, "ADF initialized\n");
 
 	return adf_info;
 
 err_attach:
-#if IS_ENABLED(CONFIG_ADF_TEGRA_FBDEV)
-	adf_fbdev_destroy(&adf_info->fbdev);
-
-err_fbdev:
-#endif
 	adf_overlay_engine_destroy(&adf_info->eng);
 
 err_eng_init:
@@ -1360,9 +1086,6 @@ err_dev_init:
 
 void tegra_adf_unregister(struct tegra_adf_info *adf_info)
 {
-#if IS_ENABLED(CONFIG_ADF_TEGRA_FBDEV)
-	adf_fbdev_destroy(&adf_info->fbdev);
-#endif
 	adf_overlay_engine_destroy(&adf_info->eng);
 	adf_interface_destroy(&adf_info->intf);
 	adf_device_destroy(&adf_info->base);
