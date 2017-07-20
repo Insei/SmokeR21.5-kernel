@@ -643,7 +643,8 @@ static int __init ardbeg_balanced_throttle_init(void)
 		of_machine_is_compatible("nvidia,jetson-tk1") ||
 		of_machine_is_compatible("nvidia,norrin") ||
 		of_machine_is_compatible("nvidia,bowmore") ||
-		of_machine_is_compatible("nvidia,tn8")) {
+		of_machine_is_compatible("nvidia,tn8") ||
+		of_machine_is_compatible("nvidia,mocha")) {
 
 		if (!balanced_throttle_register(&cpu_throttle, "cpu-balanced"))
 			pr_err("balanced_throttle_register 'cpu-balanced' FAILED.\n");
