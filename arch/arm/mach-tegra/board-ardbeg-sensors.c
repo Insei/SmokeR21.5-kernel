@@ -368,22 +368,10 @@ static struct ad5823_platform_data ardbeg_ad5823_pdata = {
 	.power_off	= ardbeg_ad5823_power_off,
 };
 
-static struct i2c_board_info ardbeg_camera_board_info[] = {
-	{
-		I2C_BOARD_INFO("imx179", 0x10),
-		.platform_data = &ardbeg_imx179_pdata,
-	},
-	{
-		I2C_BOARD_INFO("ad5823", 0x0c),
-		.platform_data = &ardbeg_ad5823_pdata,
-	},
-	{
-		I2C_BOARD_INFO("ov5693", 0x36),
-		.platform_data = &ardbeg_ov5693_pdata,
-	},
-};
-
 static struct camera_data_blob ardbeg_camera_lut[] = {
+        {"ardbeg_imx179_pdata", &ardbeg_imx179_pdata},
+        {"ardbeg_ad5823_pdata", &ardbeg_ad5823_pdata},
+        {"ardbeg_ov5693_pdata", &ardbeg_ov5693_pdata},
 	{},
 };
 
@@ -412,9 +400,6 @@ static int ardbeg_camera_init(void)
 	tegra_io_dpd_enable(&csia_io);
 	tegra_io_dpd_enable(&csib_io);
 	tegra_io_dpd_enable(&csie_io);
-
-	i2c_register_board_info(2, ardbeg_camera_board_info,
-		ARRAY_SIZE(ardbeg_camera_board_info));
 
 	return 0;
 }
