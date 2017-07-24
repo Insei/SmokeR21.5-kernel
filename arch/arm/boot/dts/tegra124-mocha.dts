@@ -124,6 +124,10 @@
 		};
 	};
 
+	pwm: pwm {
+			status = "disabled";
+	};
+	
 	pwmleds {
 		compatible = "pwm-leds";
 		button_led {
