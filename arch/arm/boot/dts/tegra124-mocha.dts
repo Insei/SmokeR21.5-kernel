@@ -132,7 +132,7 @@
 		compatible = "pwm-leds";
 		button_led {
 			label = "button-backlight";
-			pwms = <&pwm 1 10000>;
+			pwms = <&tegra_pwm 1 10000>;
 			max-brightness = <100>;
 			max-duty = <50>;
 		};
