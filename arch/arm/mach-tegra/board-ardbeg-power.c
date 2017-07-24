@@ -216,68 +216,59 @@ static void __init ardbeg_tweak_E1767_dt(void)
 		WARN(1, "Failed update DT for PMU E1767 prototype\n");
 }
 
+static struct tegra_cl_dvfs_cfg_param e1736_ardbeg_cl_dvfs_param = {
+	.sample_rate = 12500, /* i2c freq */
+
+	.force_mode = TEGRA_CL_DVFS_FORCE_FIXED,
+	.cf = 10,
+	.ci = 0,
+	.cg = 2,
+
+	.droop_cut_value = 0xF,
+	.droop_restore_ramp = 0x0,
+	.scale_out_ramp = 0x0,
+};
+
+/* E1736 volatge map. Fixed 10mv steps from 700mv to 1400mv */
+#define E1736_CPU_VDD_MAP_SIZE ((1400000 - 700000) / 10000 + 1)
+static struct voltage_reg_map e1736_cpu_vdd_map[E1736_CPU_VDD_MAP_SIZE];
+static inline void e1736_fill_reg_map(void)
+{
+	int i;
+	for (i = 0; i < E1736_CPU_VDD_MAP_SIZE; i++) {
+		/* 0.7V corresponds to 0b0011010 = 26 */
+		/* 1.4V corresponds to 0b1100000 = 96 */
+		e1736_cpu_vdd_map[i].reg_value = i + 26;
+		e1736_cpu_vdd_map[i].reg_uV = 700000 + 10000 * i;
+	}
+}
+
+static struct tegra_cl_dvfs_platform_data e1736_cl_dvfs_data = {
+	.dfll_clk_name = "dfll_cpu",
+	.pmu_if = TEGRA_CL_DVFS_PMU_I2C,
+	.u.pmu_i2c = {
+		.fs_rate = 400000,
+		.slave_addr = 0xb0, /* pmu i2c address */
+		.reg = 0x23,        /* vdd_cpu rail reg address */
+	},
+	.vdd_map = e1736_cpu_vdd_map,
+	.vdd_map_size = E1736_CPU_VDD_MAP_SIZE,
+	.pmu_undershoot_gb = 100,
+
+	.cfg_param = &e1736_ardbeg_cl_dvfs_param,
+};
 
 static int __init ardbeg_cl_dvfs_init(struct board_info *pmu_board_info)
 {
 	u16 pmu_board_id = pmu_board_info->board_id;
 	struct tegra_cl_dvfs_platform_data *data = NULL;
 
-	if (pmu_board_id == BOARD_E1735) {
-		bool e1767 = pmu_board_info->sku == E1735_EMULATE_E1767_SKU;
-		struct device_node *dn = of_find_compatible_node(
-			NULL, NULL, "nvidia,tegra124-dfll");
-		/*
-		 * Ardbeg platforms with E1735 PMIC module maybe used with
-		 * different DT variants. Some of them include CL-DVFS data
-		 * in DT, some - not. Check DT here, and continue with platform
-		 * device registration only if DT DFLL node is not present.
-		 */
-		if (dn) {
-			bool available = of_device_is_available(dn);
-			of_node_put(dn);
-
-			if (available) {
-				if (e1767)
-					ardbeg_tweak_E1767_dt();
-				return 0;
-			}
-		}
-
-		data = &e1735_cl_dvfs_data;
-
-		data->u.pmu_pwm.pwm_bus = e1767 ?
-			TEGRA_CL_DVFS_PWM_1WIRE_DIRECT :
-			TEGRA_CL_DVFS_PWM_1WIRE_BUFFER;
-
-		if (data->u.pmu_pwm.dfll_bypass_dev) {
-			platform_device_register(
-				data->u.pmu_pwm.dfll_bypass_dev);
-		} else {
-			(void)e1735_dfll_bypass_dev;
-		}
-	}
-
-
-	if (pmu_board_id == BOARD_E1733) {
-		int minor_ver = 1;
-
-		if ((pmu_board_info->major_revision == 'F') &&
-				(pmu_board_info->minor_revision == 0x2)) {
-			pr_err("AMS PMIC version 1V2\n");
-			minor_ver = 2;
-		} else {
-			minor_ver = 1;
-			pr_err("AMS PMIC version 1V2\n");
-		}
-		e1733_fill_reg_map(minor_ver);
-		data = &e1733_cl_dvfs_data;
-	}
-
-	if (data) {
-		data->flags = TEGRA_CL_DVFS_DYN_OUTPUT_CFG;
-		tegra_cl_dvfs_device.dev.platform_data = data;
-		platform_device_register(&tegra_cl_dvfs_device);
-	}
+	e1736_fill_reg_map();
+	data = &e1736_cl_dvfs_data;
+	data->flags = TEGRA_CL_DVFS_DYN_OUTPUT_CFG;
+	tegra_cl_dvfs_device.dev.platform_data = data;
+	platform_device_register(&tegra_cl_dvfs_device);
+	
 	return 0;
 }
 #else
