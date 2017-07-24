@@ -421,7 +421,7 @@ static struct thermal_zone_params cpu_tzp = {
 };
 
 static struct thermal_zone_params board_tzp = {
-	.governor_name = "pid_thermal_gov"
+	.governor_name = "step_wise"
 };
 
 static struct throttle_table cpu_throttle_table[] = {
@@ -648,7 +648,7 @@ late_initcall(ardbeg_balanced_throttle_init);
 static struct thermal_trip_info skin_trips[] = {
 	{
 		.cdev_type = "skin-balanced",
-		.trip_temp = 43000,
+		.trip_temp = 47000,
 		.trip_type = THERMAL_TRIP_PASSIVE,
 		.upper = THERMAL_NO_LIMIT,
 		.lower = THERMAL_NO_LIMIT,
@@ -660,21 +660,21 @@ static struct therm_est_subdevice skin_devs[] = {
 	{
 		.dev_data = "Tdiode_tegra",
 		.coeffs = {
-			2, 1, 1, 1,
-			1, 1, 1, 1,
-			1, 1, 1, 0,
-			1, 1, 0, 0,
-			0, 0, -1, -7
+			2, 2, 1, 1,
+			1, 0, 0, 0,
+			0, 0, 0, 0,
+			0, 0, 0, 0,
+			0, 0, 2, 3
 		},
 	},
 	{
 		.dev_data = "Tboard_tegra",
 		.coeffs = {
-			-11, -7, -5, -3,
-			-3, -2, -1, 0,
-			0, 0, 1, 1,
-			1, 2, 2, 3,
-			4, 6, 11, 18
+			-5, 1, 0, 1,
+			1, 0, 1, 1,
+			0, 2, -1, 1,
+			2, 3, 3, 2,
+			2, 1, 8, 53
 		},
 	},
 };
@@ -852,7 +852,8 @@ static int __init ardbeg_skin_init(void)
 	if (of_machine_is_compatible("nvidia,ardbeg") ||
 		of_machine_is_compatible("nvidia,norrin") ||
 		of_machine_is_compatible("nvidia,bowmore") ||
-		of_machine_is_compatible("nvidia,tn8")) {
+		of_machine_is_compatible("nvidia,tn8") ||
+		of_machine_is_compatible("nvidia,mocha")) {
 
 		tegra_get_board_info(&board_info);
 
@@ -872,7 +873,7 @@ static int __init ardbeg_skin_init(void)
 		} else {
 			skin_data.ndevs = ARRAY_SIZE(skin_devs);
 			skin_data.devs = skin_devs;
-			skin_data.toffset = 9793;
+			skin_data.toffset = 3543;
 		}
 
 		tegra_skin_therm_est_device.dev.platform_data = &skin_data;
@@ -1255,7 +1256,8 @@ int __init ardbeg_sensors_init(void)
 	if (!of_machine_is_compatible("nvidia,tn8") &&
 	    board_info.board_id != BOARD_PM359 &&
 	    board_info.board_id != BOARD_PM375 &&
-	    board_info.board_id != BOARD_PM377)
+	    board_info.board_id != BOARD_PM377 && 
+	    !of_machine_is_compatible("nvidia,mocha"))
 		i2c_register_board_info(0, ardbeg_i2c_board_info_cm32181,
 			ARRAY_SIZE(ardbeg_i2c_board_info_cm32181));
 #endif

@@ -886,7 +886,8 @@ int __init ardbeg_soctherm_init(void)
 	tegra_chip_id = tegra_get_chip_id();
 
 	if (board_info.board_id == BOARD_E1923 ||
-			board_info.board_id == BOARD_E1922) {
+			board_info.board_id == BOARD_E1922 ||
+			board_info.board_id == BOARD_E1780) {
 		memcpy(ardbeg_soctherm_data.therm,
 				ardbeg_therm_pop, sizeof(ardbeg_therm_pop));
 	}
@@ -949,7 +950,8 @@ int __init ardbeg_soctherm_init(void)
 		board_info.board_id == BOARD_E1784 ||
 		board_info.board_id == BOARD_E1971 ||
 		board_info.board_id == BOARD_E1991 ||
-		board_info.board_id == BOARD_E1922) {
+		board_info.board_id == BOARD_E1922 ||
+		board_info.board_id == BOARD_E1780) {
 		tegra_add_cpu_vmin_trips(
 			ardbeg_soctherm_data.therm[therm_cpu].trips,
 			&ardbeg_soctherm_data.therm[therm_cpu].num_trips);
@@ -986,6 +988,14 @@ int __init ardbeg_soctherm_init(void)
 		break;
 	case BOARD_P1761:
 	case BOARD_E1936:
+	case BOARD_E1736:
+		memcpy(&ardbeg_soctherm_data.throttle[THROTTLE_OC4],
+				   &battery_oc_throttle_t12x,
+				   sizeof(battery_oc_throttle_t12x));
+		memcpy(&ardbeg_soctherm_data.throttle[THROTTLE_OC1],
+			   &voltmon_throttle_t12x,
+			   sizeof(voltmon_throttle_t12x));
+		break;
 	case BOARD_P1765:
 		if (tegra_chip_id == TEGRA_CHIPID_TEGRA13) {
 			memcpy(&ardbeg_soctherm_data.throttle[THROTTLE_OC4],
