@@ -3,7 +3,6 @@
  *
  * Copyright 2011-2012 Texas Instruments Inc.
  * Copyright (c) 2013-2014, NVIDIA CORPORATION. All rights reserved.
- * Copyright (C) 2016 XiaoMi, Inc.
  *
  * Author: Graeme Gregory <gg@slimlogic.co.uk>
  *
@@ -29,6 +28,7 @@
 #include <linux/of.h>
 #include <linux/of_device.h>
 #include <linux/of_platform.h>
+#include <linux/system-wakeup.h>
 
 #define EXT_PWR_REQ (PALMAS_EXT_CONTROL_ENABLE1 |	\
 			PALMAS_EXT_CONTROL_ENABLE2 |	\
@@ -71,6 +71,7 @@ enum palmas_ids {
 	PALMAS_SIM_ID,
 	PALMAS_PM_ID,
 	PALMAS_THERM_ID,
+	PALMAS_LDOUSB_IN_ID,
 };
 
 static struct resource palmas_rtc_resources[] = {
@@ -88,7 +89,8 @@ static struct resource palmas_rtc_resources[] = {
 		BIT(PALMAS_GPADC_ID) |	BIT(PALMAS_RESOURCE_ID) |	\
 		BIT(PALMAS_CLK_ID) | BIT(PALMAS_PWM_ID)		| 	\
 		BIT(PALMAS_USB_ID) | BIT(PALMAS_EXTCON_ID)	|	\
-		BIT(PALMAS_PM_ID) | BIT(PALMAS_THERM_ID))
+		BIT(PALMAS_PM_ID) | BIT(PALMAS_THERM_ID) |	\
+		BIT(PALMAS_LDOUSB_IN_ID))
 
 #define TPS80036_SUB_MODULE	(TPS65913_SUB_MODULE |			\
 		BIT(PALMAS_BATTERY_GAUGE_ID) | BIT(PALMAS_CHARGER_ID) |	\
@@ -181,6 +183,10 @@ static const struct mfd_cell palmas_children[] = {
 		.resources = thermal_resource,
 		.id = PALMAS_THERM_ID,
 	},
+	{
+		.name = "palmas-ldousb-in",
+		.id = PALMAS_LDOUSB_IN_ID,
+	},
 };
 
 static bool is_volatile_palmas_func_reg(struct device *dev, unsigned int reg)
@@ -198,6 +204,24 @@ static bool is_volatile_palmas_func_reg(struct device *dev, unsigned int reg)
 			return false;
 	}
 	return true;
+}
+
+static int palmas_reg_volatile_set(struct device *dev, unsigned int reg,
+				   bool is_volatile)
+{
+	if ((reg >= PALMAS_BASE_TO_REG(PALMAS_SMPS_BASE,
+				       PALMAS_SMPS12_CTRL)) &&
+	    (reg <= PALMAS_BASE_TO_REG(PALMAS_SMPS_BASE,
+				       PALMAS_SMPS9_VOLTAGE))) {
+		struct palmas *palmas = dev_get_drvdata(dev);
+		unsigned int bit = PALMAS_REG_TO_FN_ADDR(PALMAS_SMPS_BASE, reg);
+		if (is_volatile)
+			set_bit(bit, palmas->volatile_smps_registers);
+		else
+			clear_bit(bit, palmas->volatile_smps_registers);
+		return 0;
+	}
+	return -EINVAL;
 }
 
 static void palmas_regmap_config0_lock(void *lock)
@@ -229,6 +253,7 @@ static struct regmap_config palmas_regmap_config[PALMAS_NUM_CLIENTS] = {
 		.max_register = PALMAS_BASE_TO_REG(PALMAS_PU_PD_OD_BASE,
 					PALMAS_PRIMARY_SECONDARY_PAD4),
 		.volatile_reg = is_volatile_palmas_func_reg,
+		.reg_volatile_set = palmas_reg_volatile_set,
 		.lock = palmas_regmap_config0_lock,
 		.unlock = palmas_regmap_config0_unlock,
 		.cache_type  = REGCACHE_RBTREE,
@@ -346,9 +371,7 @@ static struct palmas_irq palmas_irqs[] = {
 	/* INT2 IRQs */
 	PALMAS_IRQ(RTC_ALARM_IRQ, INT2_STATUS_RTC_ALARM, 1, 0, 0, 0),
 	PALMAS_IRQ(RTC_TIMER_IRQ, INT2_STATUS_RTC_TIMER, 1, 0, 0, 0),
-#if	!defined(CONFIG_TRACE_WARMBOOT)
 	PALMAS_IRQ(WDT_IRQ, INT2_STATUS_WDT, 1, 0, 0, 0),
-#endif
 	PALMAS_IRQ(BATREMOVAL_IRQ, INT2_STATUS_BATREMOVAL, 1, 0, 0, 0),
 	PALMAS_IRQ(RESET_IN_IRQ, INT2_STATUS_RESET_IN, 1, 0, 0, 0),
 	PALMAS_IRQ(FBI_BB_IRQ, INT2_STATUS_FBI_BB, 1, 0, 0, 0),
@@ -440,6 +463,7 @@ struct palmas_irq_chip_data {
 	int			num_mask_regs;
 	int			num_edge_regs;
 	int			wake_count;
+	bool			wakeup_print_enable;
 };
 
 static inline const struct palmas_irq *irq_to_palmas_irq(
@@ -562,11 +586,27 @@ static const struct irq_chip palmas_irq_chip = {
 	.irq_set_wake		= palmas_irq_set_wake,
 };
 
+static void print_wakeup_irq(struct device *dev, int irq)
+{
+	struct irq_desc *desc;
+
+	desc = irq_to_desc(irq);
+	if (!desc || !desc->action || !desc->action->name)
+		dev_info(dev, "Device WAKEUP sub-irq %d\n", irq);
+	else
+		dev_info(dev, "Device WAKEUP sub-irq %s\n", desc->action->name);
+}
+
 static irqreturn_t palmas_irq_thread(int irq, void *data)
 {
 	struct palmas_irq_chip_data *d = data;
 	int ret, i;
 	bool handled = false;
+	bool print_wakeup = false;
+	int sub_irq;
+
+	if (d->wakeup_print_enable && (irq == get_wakeup_reason_irq()))
+		print_wakeup = true;
 
 	mutex_lock(&d->shutdown_irq_lock);
 	if (d->shutdown_irq) {
@@ -591,10 +631,14 @@ static irqreturn_t palmas_irq_thread(int irq, void *data)
 	for (i = 0; i < d->num_irqs; i++) {
 		if (d->status_value[d->irqs[i].mask_reg_index] &
 				d->irqs[i].interrupt_mask) {
+			sub_irq = irq_find_mapping(d->domain, i);
+			if (print_wakeup)
+				print_wakeup_irq(d->palmas->dev, sub_irq);
 			handle_nested_irq(irq_find_mapping(d->domain, i));
 			handled = true;
 		}
 	}
+	d->wakeup_print_enable = false;
 
 exit:
 	mutex_unlock(&d->shutdown_irq_lock);
@@ -939,9 +983,6 @@ static int palmas_set_pdata_irq_flag(struct i2c_client *i2c,
 static int palmas_read_version_information(struct palmas *palmas)
 {
 	unsigned int sw_rev, des_rev;
-#if	defined(CONFIG_TRACE_WARMBOOT)
-	unsigned int wb0_trace;
-#endif
 	int ret;
 
 	ret = palmas_read(palmas, PALMAS_PMU_CONTROL_BASE,
@@ -950,26 +991,6 @@ static int palmas_read_version_information(struct palmas *palmas)
 		dev_err(palmas->dev, "SW_REVISION read failed: %d\n", ret);
 		return ret;
 	}
-
-#if	defined(CONFIG_TRACE_WARMBOOT)
-	ret = palmas_read(palmas, PALMAS_VALIDITY_BASE,
-				PALMAS_BACKUP7, &wb0_trace);
-	if (ret < 0)
-		dev_warn(palmas->dev, "PALMAS_BACKUP7 read failed: %d\n", ret);
-
-	ret = palmas_write(palmas, PALMAS_VALIDITY_BASE,
-				PALMAS_BACKUP7, 0);
-	if (ret < 0)
-		dev_warn(palmas->dev, "PALMAS_BACKUP7 write failed: %d\n", ret);
-
-	dev_info(palmas->dev, "Warmboot trace  0x%X", wb0_trace);
-
-	ret = palmas_update_bits(palmas, PALMAS_INTERRUPT_BASE,
-			PALMAS_INT2_MASK, PALMAS_INT2_MASK_WDT,
-			0);
-	if (ret < 0)
-		dev_warn(palmas->dev, "INT2_MASK_WDT update failed: %d\n", ret);
-#endif
 
 	ret = palmas_read(palmas, PALMAS_PAGE3_BASE,
 				PALMAS_INTERNAL_DESIGNREV, &des_rev);
@@ -1024,17 +1045,8 @@ static int palmas_read_version_information(struct palmas *palmas)
 static void palmas_dt_to_pdata(struct i2c_client *i2c,
 		struct palmas_platform_data *pdata)
 {
-	int ret;
-
 	if (i2c->irq)
 		palmas_set_pdata_irq_flag(i2c, pdata);
-
-	ret = of_property_read_u32(i2c->dev.of_node,
-			"ti,long_press_delay", &pdata->long_press_delay);
-	if (ret == -EINVAL) {
-		/* 12s by default */
-		pdata->long_press_delay = 3;
-	}
 }
 
 static const struct of_device_id of_palmas_match_tbl[] = {
@@ -1087,7 +1099,7 @@ static int palmas_i2c_probe(struct i2c_client *i2c,
 				&i2c->dev);
 		if (!match)
 			return -ENODATA;
-		palmas->id = (unsigned int)match->data;
+		palmas->id = (u32)((uintptr_t)match->data);
 	} else {
 		palmas->id = id->driver_data;
 	}
@@ -1168,6 +1180,18 @@ static int palmas_i2c_probe(struct i2c_client *i2c,
 		goto free_irq;
 
 	/*
+	 * If we are probing with DT do this the DT way and return here
+	 * otherwise continue and add devices using mfd helpers.
+	 */
+	if (node) {
+		ret = of_platform_populate(node, NULL, NULL, &i2c->dev);
+		if (ret < 0)
+			goto free_irq;
+		else
+			return ret;
+	}
+
+	/*
 	 * Programming the Long-Press shutdown delay register.
 	 * Using "slave" from previous assignment as this register
 	 * too belongs to PALMAS_PMU_CONTROL_BASE block.
@@ -1184,29 +1208,6 @@ static int palmas_i2c_probe(struct i2c_client *i2c,
 				"(hard shutdown delay), err: %d\n", ret);
 			goto free_irq;
 		}
-		/* cold restart for long power key */
-		ret = palmas_update_bits(palmas, PALMAS_PMU_CONTROL_BASE,
-					PALMAS_SWOFF_COLDRST,
-					PALMAS_SWOFF_COLDRST_PWRON_LPK,
-					PALMAS_SWOFF_COLDRST_PWRON_LPK);
-		if (ret) {
-			dev_err(palmas->dev,
-				"Failed to update palmas swoff coldrst"
-				"(hard shutdown delay), err: %d\n", ret);
-			goto free_irq;
-		}
-	}
-
-	/*
-	 * If we are probing with DT do this the DT way and return here
-	 * otherwise continue and add devices using mfd helpers.
-	 */
-	if (node) {
-		ret = of_platform_populate(node, NULL, NULL, &i2c->dev);
-		if (ret < 0)
-			goto free_irq;
-		else
-			return ret;
 	}
 
 	palmas_init_ext_control(palmas);
@@ -1298,6 +1299,22 @@ static int palmas_i2c_remove(struct i2c_client *i2c)
 	return 0;
 }
 
+static int palmas_i2c_suspend_no_irq(struct device *dev)
+{
+	struct palmas *palmas = dev_get_drvdata(dev);
+
+	palmas->irq_chip_data->wakeup_print_enable = true;
+	return 0;
+}
+
+static int palmas_i2c_resume(struct device *dev)
+{
+	struct palmas *palmas = dev_get_drvdata(dev);
+
+	palmas->irq_chip_data->wakeup_print_enable = false;
+	return 0;
+}
+
 static void palmas_i2c_shutdown(struct i2c_client *i2c)
 {
 	struct palmas *palmas = i2c_get_clientdata(i2c);
@@ -1334,11 +1351,17 @@ static const struct i2c_device_id palmas_i2c_id[] = {
 };
 MODULE_DEVICE_TABLE(i2c, palmas_i2c_id);
 
+static const struct dev_pm_ops palams_pm_ops = {
+	.suspend_noirq = palmas_i2c_suspend_no_irq,
+	.resume = palmas_i2c_resume,
+};
+
 static struct i2c_driver palmas_i2c_driver = {
 	.driver = {
 		   .name = "palmas",
 		   .of_match_table = of_palmas_match_tbl,
 		   .owner = THIS_MODULE,
+		   .pm = &palams_pm_ops,
 	},
 	.probe = palmas_i2c_probe,
 	.remove = palmas_i2c_remove,
