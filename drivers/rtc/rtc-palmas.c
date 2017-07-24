@@ -374,7 +374,6 @@ static int palmas_rtc_probe(struct platform_device *pdev)
 	palmas_rtc->irq = palmas_irq_get_virq(palmas, PALMAS_RTC_ALARM_IRQ);
 	dev_dbg(&pdev->dev, "RTC interrupt %d\n", palmas_rtc->irq);
 
-	device_init_wakeup(&pdev->dev, 1);
 	palmas_rtc->rtc = rtc_device_register(pdev->name, &pdev->dev,
 		&palmas_rtc_ops, THIS_MODULE);
 	if (IS_ERR(palmas_rtc->rtc)) {
