@@ -146,7 +146,7 @@
 		compatible = "nvidia,tegra124-pwm";
 		reg = <0x0 0x7000a000 0x0 0x100>;
 		#pwm-cells = <2>;
-		status = "disabled";
+		status = "okay";
 	};
 
 	i2c1: i2c@7000c000 {
