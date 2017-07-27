@@ -987,11 +987,11 @@ DECLARE_BUILTIN_FIRMWARE_SIZE(S7040_OFILM_TEST_DATA,
 			s7040_ofilm_test_data, sizeof(s7040_ofilm_test_data));
 
 static unsigned int key_map[] = {
-	KEY_MENU, KEY_HOME, KEY_BACK
+	KEY_MENU, KEY_HOME, KEY_BACK, KEY_POWER
 };
 
 static struct synaptics_dsx_cap_button_map button_map = {
-	.nbuttons		= 3,
+	.nbuttons		= 4,
 	.map			= key_map,
 };
 
