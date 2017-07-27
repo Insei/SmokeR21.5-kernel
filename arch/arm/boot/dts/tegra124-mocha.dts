@@ -124,8 +124,8 @@
 		};
 	};
 
-	pwm: pwm {
-			status = "disabled";
+	tegra_pwm: pwm@7000a000 {
+		clocks = <&tegra_car 17>;
 	};
 	
 	pwmleds {
