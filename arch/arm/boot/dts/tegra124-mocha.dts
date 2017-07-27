@@ -1,6 +1,5 @@
 /dts-v1/;
 
-#include "tegra124.dtsi"
 #include "tegra124-tn8.dtsi"
 #include "tegra124-platforms/tegra124-tn8-emc-e1922-1100-a00.dtsi"
 #include "tegra124-platforms/tegra124-tn8-pmic-e1736-1000-a00.dtsi"
@@ -123,7 +122,7 @@
 			als_sensitive = <25>;
 		};
 	};
-
+	
 	tegra_pwm: pwm@7000a000 {
 		clocks = <&tegra_car 17>;
 	};
