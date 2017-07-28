@@ -622,9 +622,9 @@ static int x_pre = 0;
 static int y_pre = 0;
 static int touch_nr = 0;
 
-#define DT2W_MIN_TIME_BETWEEN_TOUCHES    50
+#define DT2W_MIN_TIME_BETWEEN_TOUCHES    20
 #define DT2W_MAX_TIME_BETWEEN_TOUCHES    200
-#define DT2W_SECOND_TOUCH_RADIUS         30
+#define DT2W_SECOND_TOUCH_RADIUS         60
 
 /* Calculate the scatter between touches */
 static unsigned int calc_feather(int coord, int prev_coord)
@@ -656,7 +656,7 @@ static void new_touch(int x, int y)
 	x_pre = x;
 	y_pre = y;
 
-	touch_nr++;
+	++touch_nr;
 }
 
  /**
@@ -759,23 +759,25 @@ static int synaptics_rmi4_f11_abs_report(struct synaptics_rmi4_data *rmi4_data,
 			if (rmi4_data->hw_if->board_data->y_flip)
 				y = rmi4_data->sensor_max_y - y;
 
-			input_report_key(rmi4_data->input_dev,
-					BTN_TOUCH, 1);
-			input_report_key(rmi4_data->input_dev,
-					BTN_TOOL_FINGER, 1);
-			input_report_abs(rmi4_data->input_dev,
-					ABS_MT_POSITION_X, x);
-			input_report_abs(rmi4_data->input_dev,
-					ABS_MT_POSITION_Y, y);
+                        if (!screen_is_off) {
+			        input_report_key(rmi4_data->input_dev,
+				    	        BTN_TOUCH, 1);
+			        input_report_key(rmi4_data->input_dev,
+					        BTN_TOOL_FINGER, 1);
+			        input_report_abs(rmi4_data->input_dev,
+					        ABS_MT_POSITION_X, x);
+			        input_report_abs(rmi4_data->input_dev,
+					        ABS_MT_POSITION_Y, y);
 #ifdef REPORT_2D_W
-			input_report_abs(rmi4_data->input_dev,
-					ABS_MT_TOUCH_MAJOR, max(wx, wy));
-			input_report_abs(rmi4_data->input_dev,
-					ABS_MT_TOUCH_MINOR, min(wx, wy));
+			        input_report_abs(rmi4_data->input_dev,
+					        ABS_MT_TOUCH_MAJOR, max(wx, wy));
+			        input_report_abs(rmi4_data->input_dev,
+					        ABS_MT_TOUCH_MINOR, min(wx, wy));
 #endif
 #ifndef TYPE_B_PROTOCOL
-			input_mt_sync(rmi4_data->input_dev);
+			        input_mt_sync(rmi4_data->input_dev);
 #endif
+                        }
 
 			dev_dbg(rmi4_data->pdev->dev.parent,
 					"%s: Finger %d:\n"
@@ -792,7 +794,7 @@ static int synaptics_rmi4_f11_abs_report(struct synaptics_rmi4_data *rmi4_data,
 		}
 	}
 
-	if (touch_count == 0) {
+	if (touch_count == 0 && !screen_is_off) {
 		input_report_key(rmi4_data->input_dev,
 				BTN_TOUCH, 0);
 		input_report_key(rmi4_data->input_dev,
@@ -802,36 +804,30 @@ static int synaptics_rmi4_f11_abs_report(struct synaptics_rmi4_data *rmi4_data,
 #endif
 	}
 
-        if (touch_count == 1 && screen_is_off && rmi4_data->wakeup_enable) {
-		if (touch_nr == 0) {
-			new_touch(x, y);
-		} else if (touch_nr == 1) {
-			if ((calc_feather(x, x_pre) < DT2W_SECOND_TOUCH_RADIUS) &&
-			    (calc_feather(y, y_pre) < DT2W_SECOND_TOUCH_RADIUS) &&
-			   ((jiffies - tap_time_pre) < DT2W_MAX_TIME_BETWEEN_TOUCHES) &&
-			   ((jiffies - tap_time_pre) > DT2W_MIN_TIME_BETWEEN_TOUCHES)) {
-				touch_nr++;
-			} else {
-				doubletap2wake_reset();
-				new_touch(x, y);
-			}
-		} 
-
-                if (touch_nr > 2) {
-			doubletap2wake_reset();
-			new_touch(x, y);
-		}
-
-                if (touch_nr == 2) {
-                        if (screen_is_off) {
-			        dev_err(rmi4_data->pdev->dev.parent, "double click gesture triggerred !\nwakeup the tablet!\n");
-		                input_event(rmi4_data->input_dev, EV_KEY, KEY_POWER, 1);
-		                input_sync(rmi4_data->input_dev);
-		                input_event(rmi4_data->input_dev, EV_KEY, KEY_POWER, 0);
-		                input_sync(rmi4_data->input_dev);
-			        doubletap2wake_reset();
+        if (touch_count == 0 && screen_is_off && rmi4_data->wakeup_enable) {
+                switch (touch_nr) {
+                        case 0: {
+                                new_touch(x, y);
+                                break;
                         }
-		}
+                        case 1: {
+			        if ((calc_feather(x, x_pre) < DT2W_SECOND_TOUCH_RADIUS) &&
+			            (calc_feather(y, y_pre) < DT2W_SECOND_TOUCH_RADIUS) &&
+			           ((jiffies - tap_time_pre) < DT2W_MAX_TIME_BETWEEN_TOUCHES) &&
+			           ((jiffies - tap_time_pre) > DT2W_MIN_TIME_BETWEEN_TOUCHES)) {
+			                dev_err(rmi4_data->pdev->dev.parent, "double click gesture triggerred !\nwakeup the tablet!\n");
+	                                input_event(rmi4_data->input_dev, EV_KEY, KEY_POWER, 1);
+	                                input_sync(rmi4_data->input_dev);
+	                                input_event(rmi4_data->input_dev, EV_KEY, KEY_POWER, 0);
+	                                input_sync(rmi4_data->input_dev);
+		                        doubletap2wake_reset();
+			        } else {
+				        doubletap2wake_reset();
+				        new_touch(x, y);
+			        }
+                                break;
+                        }
+                }
         }
 
 	input_sync(rmi4_data->input_dev);
