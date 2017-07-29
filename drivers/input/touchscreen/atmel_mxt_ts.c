@@ -618,6 +618,7 @@ struct mxt_data {
 	u8 T109_reportid;
 	u16 T38_address;
 	u16 T71_address;
+        bool mxt_1066t;
 };
 
 static struct mxt_suspend mxt_save[] = {
@@ -1503,6 +1504,48 @@ static int mxt_do_diagnostic(struct mxt_data *data, u8 mode)
 	return -ETIMEDOUT;
 }
 
+static unsigned long long tap_time_pre = 0;
+static int x_pre = 0;
+static int y_pre = 0;
+static int touch_nr = 0;
+
+#define DT2W_MIN_TIME_BETWEEN_TOUCHES    20
+#define DT2W_MAX_TIME_BETWEEN_TOUCHES    200
+#define DT2W_SECOND_TOUCH_RADIUS         60
+
+/* Calculate the scatter between touches */
+static unsigned int calc_feather(int coord, int prev_coord)
+{
+	int calc_coord = 0;
+
+	calc_coord = coord - prev_coord;
+	if (calc_coord < 0)
+		return -calc_coord;
+
+	return calc_coord;
+}
+
+/* Reset gesture data */
+static void doubletap2wake_reset(void)
+{
+	touch_nr = 0;
+	tap_time_pre = 0;
+
+	x_pre = 0;
+	y_pre = 0;
+}
+
+/* Record a new touch */
+static void new_touch(int x, int y)
+{
+	tap_time_pre = jiffies;
+
+	x_pre = x;
+	y_pre = y;
+
+	++touch_nr;
+}
+
 static void mxt_proc_t100_messages(struct mxt_data *data, u8 *message)
 {
 	struct device *dev = &data->client->dev;
@@ -1563,30 +1606,61 @@ static void mxt_proc_t100_messages(struct mxt_data *data, u8 *message)
 		input_mt_slot(input_dev, id - 2);
 
 		if (status & MXT_T100_DETECT) {
-			/* Touch in detect, report X/Y position */
-			input_mt_report_slot_state(input_dev, MT_TOOL_FINGER, 1);
-			input_report_abs(input_dev, ABS_MT_POSITION_X, x);
-			input_report_abs(input_dev, ABS_MT_POSITION_Y, y);
+			/* Touch in detect, report X/Y position. Only if screen is on. */
+                        if (!screen_is_off) {
+			        input_mt_report_slot_state(input_dev, MT_TOOL_FINGER, 1);
+			        input_report_abs(input_dev, ABS_MT_POSITION_X, x);
+			        input_report_abs(input_dev, ABS_MT_POSITION_Y, y);
 
-			if (data->t100_tchaux_bits &  MXT_T100_AMPL) {
-				if (amplitude == 0)
-					amplitude = 1;
-				input_report_abs(input_dev, ABS_MT_PRESSURE, amplitude);
-			}
-			if (data->t100_tchaux_bits &  MXT_T100_AREA) {
-				if (area == 0)
-					area = 1;
-				input_report_abs(input_dev, ABS_MT_TOUCH_MAJOR, area);
-			}
-			if (data->t100_tchaux_bits &  MXT_T100_VECT) {
-				if (vector == 0)
-					vector = 1;
-				input_report_abs(input_dev, ABS_MT_ORIENTATION, vector);
-			}
+			        if (data->t100_tchaux_bits &  MXT_T100_AMPL) {
+				        if (amplitude == 0)
+					        amplitude = 1;
+				        input_report_abs(input_dev, ABS_MT_PRESSURE, amplitude);
+			        }
+			        if (data->t100_tchaux_bits &  MXT_T100_AREA) {
+				        if (area == 0)
+					        area = 1;
+				        input_report_abs(input_dev, ABS_MT_TOUCH_MAJOR, area);
+			        }
+			        if (data->t100_tchaux_bits &  MXT_T100_VECT) {
+				        if (vector == 0)
+					        vector = 1;
+				        input_report_abs(input_dev, ABS_MT_ORIENTATION, vector);
+			        }
+                        }
 		} else {
-			/* Touch no longer in detect, so close out slot */
-			mxt_input_sync(data);
-			input_mt_report_slot_state(input_dev, MT_TOOL_FINGER, 0);
+			/* Touch no longer in detect, so close out slot. Only if screen is on. */
+                        if (!screen_is_off) {
+			        mxt_input_sync(data);
+			        input_mt_report_slot_state(input_dev, MT_TOOL_FINGER, 0);
+                        }
+
+                        if (screen_is_off && data->mxt_1066t) {
+                                switch (touch_nr) {
+                                        case 0: {
+                                                new_touch(x, y);
+                                                break;
+                                        }
+                                        case 1: {
+			                        if ((calc_feather(x, x_pre) < DT2W_SECOND_TOUCH_RADIUS) &&
+			                            (calc_feather(y, y_pre) < DT2W_SECOND_TOUCH_RADIUS) &&
+			                           ((jiffies - tap_time_pre) < DT2W_MAX_TIME_BETWEEN_TOUCHES) &&
+			                           ((jiffies - tap_time_pre) > DT2W_MIN_TIME_BETWEEN_TOUCHES)) {
+			                                dev_err(dev, "double click gesture triggerred !\n"
+                                                                     "wakeup the tablet!\n");
+	                                                input_event(input_dev, EV_KEY, KEY_POWER, 1);
+	                                                input_sync(input_dev);
+	                                                input_event(input_dev, EV_KEY, KEY_POWER, 0);
+	                                                input_sync(input_dev);
+		                                        doubletap2wake_reset();
+			                         } else {
+				                        doubletap2wake_reset();
+				                        new_touch(x, y);
+			                         }
+                                                 break;
+                                        }
+                                }
+                        }
 		}
 	}
 }
@@ -2422,6 +2496,10 @@ static const char *mxt_get_config(struct mxt_data *data, bool is_default)
 				if (data->user_id == pdata->config_array[i].user_id) {
 					dev_info(dev, "select config %d\n", i);
 					data->current_index = i;
+                                        if (i == 2)
+                                                data->mxt_1066t = true;
+                                        else
+                                                data->mxt_1066t = false;
 					return  pdata->config_array[i].mxt_cfg_name;
 				}
 			} else {
