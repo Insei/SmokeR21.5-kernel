@@ -2494,7 +2494,7 @@ static const char *mxt_get_config(struct mxt_data *data, bool is_default)
 			data->info.build == pdata->config_array[i].build) {
 			if (!is_default) {
 				if (data->user_id == pdata->config_array[i].user_id) {
-					dev_info(dev, "select config %d\n", i);
+					dev_info(dev, "select config %d, config name = %s\n", i, pdata->config_array[i].mxt_cfg_name);
 					data->current_index = i;
                                         if (i == 2)
                                                 data->mxt_1066t = true;
