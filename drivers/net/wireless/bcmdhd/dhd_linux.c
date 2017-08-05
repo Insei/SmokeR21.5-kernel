@@ -702,7 +702,8 @@ static int dhd_convert_dhcp_broadcast_ack_to_unicast(dhd_pub_t *pub, void *pktbu
 #ifdef DHD_L2_FILTER
 static int dhd_l2_filter_block_ping(dhd_pub_t *pub, void *pktbuf, int ifidx);
 #endif
-#if defined(CONFIG_PM_SLEEP)
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)) && (LINUX_VERSION_CODE <= \
+         KERNEL_VERSION(2, 6, 39)) && defined(CONFIG_PM_SLEEP)
 static int dhd_pm_callback(struct notifier_block *nfb, unsigned long action, void *ignored)
 {
 	int ret = NOTIFY_DONE;
@@ -752,7 +753,7 @@ static bool dhd_pm_notifier_registered = FALSE;
 
 extern int register_pm_notifier(struct notifier_block *nb);
 extern int unregister_pm_notifier(struct notifier_block *nb);
-#endif /* CONFIG_PM_SLEEP */
+#endif /* (LINUX_VERSION >= 2.6.27 && LINUX_VERSION <= 2.6.39 && CONFIG_PM_SLEEP) */
 
 /* Request scheduling of the bus rx frame */
 static void dhd_sched_rxf(dhd_pub_t *dhdp, void *skb);
@@ -4904,12 +4905,13 @@ dhd_attach(osl_t *osh, struct dhd_bus *bus, uint bus_hdrlen)
 
 	dhd_state |= DHD_ATTACH_STATE_THREADS_CREATED;
 
-#if defined(CONFIG_PM_SLEEP)
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)) && (LINUX_VERSION_CODE <= \
+         KERNEL_VERSION(2, 6, 39)) && defined(CONFIG_PM_SLEEP)
 	if (!dhd_pm_notifier_registered) {
 		dhd_pm_notifier_registered = TRUE;
 		register_pm_notifier(&dhd_pm_notifier);
 	}
-#endif /* CONFIG_PM_SLEEP */
+#endif /* (LINUX_VERSION >= 2.6.27 && LINUX_VERSION <= 2.6.39 && CONFIG_PM_SLEEP) */
 #ifdef SAR_SUPPORT
 	dhd->sar_notifier.notifier_call = dhd_sar_callback;
 	if (!dhd_sar_notifier_registered) {
@@ -6889,12 +6891,13 @@ void dhd_detach(dhd_pub_t *dhdp)
 	if (dhdp->rtt_state)
 		dhd_rtt_deinit(dhdp);
 #endif
-#if defined(CONFIG_PM_SLEEP)
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)) && (LINUX_VERSION_CODE <= \
+         KERNEL_VERSION(2, 6, 39)) && defined(CONFIG_PM_SLEEP)
 	if (dhd_pm_notifier_registered) {
 		unregister_pm_notifier(&dhd_pm_notifier);
 		dhd_pm_notifier_registered = FALSE;
 	}
-#endif /* CONFIG_PM_SLEEP */
+#endif /* (LINUX_VERSION >= 2.6.27 && LINUX_VERSION <= 2.6.39 && CONFIG_PM_SLEEP) */
 #ifdef SAR_SUPPORT
 	if (dhd_sar_notifier_registered) {
 		unregister_notifier_by_sar(&dhd->sar_notifier);
