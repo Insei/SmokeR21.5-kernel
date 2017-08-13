@@ -9123,7 +9123,7 @@ void __init tegra12x_clk_init_la(void)
  */
 #define CPU_FREQ_STEP 102000 /* 102MHz cpu_g table step */
 #define CPU_FREQ_TABLE_MAX_SIZE (2 * MAX_DVFS_FREQS + 1)
-#define CPU_SUSPEND_FREQ  204000
+#define CPU_SUSPEND_FREQ  51000
 
 static struct cpufreq_frequency_table freq_table[CPU_FREQ_TABLE_MAX_SIZE];
 static struct tegra_cpufreq_table_data freq_table_data;
