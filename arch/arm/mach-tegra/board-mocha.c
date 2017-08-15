@@ -176,13 +176,7 @@ static struct i2c_board_info __initdata audio_board_info[] = {
 	{
 		I2C_BOARD_INFO("rt5671", 0x1c),
 		.platform_data = &rt5671_pdata,
- 	},
-	{
-		I2C_BOARD_INFO("tfa98xx", 0x34),
- 	},
-	{
-		I2C_BOARD_INFO("tfa98xx", 0x37),
- 	},		
+ 	},	
 };
 
 static __initdata struct tegra_clk_init_table ardbeg_clk_init_table[] = {

@@ -121,6 +121,16 @@
 			als_highthres = <0xf800>;
 			als_sensitive = <25>;
 		};
+
+		tfa9890l: tfa98xx@34 {
+			compatible = "nxp,tfa9890";
+			reg = <0x34>;
+		};
+
+		tfa9890r: tfa98xx@37 {
+			compatible = "nxp,tfa9890";
+			reg = <0x37>;
+		};
 	};
 	
 	tegra_pwm: pwm@7000a000 {

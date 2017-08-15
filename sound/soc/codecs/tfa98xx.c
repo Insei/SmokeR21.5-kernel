@@ -22,6 +22,7 @@
 #include <sound/pcm_params.h>
 #include <sound/soc.h>
 #include <sound/tlv.h>
+#include <linux/of.h>
 
 #include "tfa98xx.h"
 
@@ -1399,10 +1400,19 @@ static const struct i2c_device_id tfa98xx_i2c_id[] = {
 };
 MODULE_DEVICE_TABLE(i2c, tfa98xx_i2c_id);
 
+#ifdef CONFIG_OF
+static struct of_device_id tfa98xx_match[] = {
+	{ .compatible = "nxp,tfa9890" },
+	{ },
+};
+MODULE_DEVICE_TABLE(of, tfa98xx_match_tbl);
+#endif
+
 static struct i2c_driver tfa98xx_i2c_driver = {
 	.driver = {
 		.name = "tfa98xx",
 		.owner = THIS_MODULE,
+		.of_match_table = of_match_ptr(tfa98xx_match),
 	},
 	.probe = tfa98xx_i2c_probe,
 	.remove = tfa98xx_i2c_remove,
