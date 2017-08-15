@@ -852,6 +852,23 @@ static ssize_t tfa98xx_pilot_tone_show(struct device *dev,
 }
 static DEVICE_ATTR(pilot_tone, 0444, tfa98xx_pilot_tone_show, NULL);
 
+static int tfa98xx_firmware_put(struct tfa98xx_priv *tfa98xx, unsigned long id, const char *name);
+
+static void tfa98xx_container_loaded(const struct firmware *cont, void *context)
+{
+       struct tfa98xx_priv *tfa98xx = context;
+       release_firmware(cont);
+       printk("tfa98xx_container_loaded\n");
+
+       tfa98xx_firmware_put(tfa98xx, TFA98XX_FW_BOOT, "tfa9890_boot.patch");
+       tfa98xx_firmware_put(tfa98xx, TFA98XX_FW_ROM, "tfa9890_rom.patch" );
+       tfa98xx_firmware_put(tfa98xx, TFA98XX_FW_SPEAKER, "tfa9890_left.speaker" );
+       tfa98xx_firmware_put(tfa98xx, TFA98XX_FW_CONFIG, "tfa9890.config" );
+       tfa98xx_firmware_put(tfa98xx, TFA98XX_FW_PRESET, "tfa9890_left_music.preset" );
+       tfa98xx_firmware_put(tfa98xx, TFA98XX_FW_EQUALIZER, "tfa9890_left_music.eq" );
+
+}
+
 static int tfa98xx_probe(struct snd_soc_codec *codec)
 {
 	struct tfa98xx_priv *tfa98xx;
@@ -865,6 +882,23 @@ static int tfa98xx_probe(struct snd_soc_codec *codec)
 
 	tfa98xx->codec = codec;
 	mutex_init(&tfa98xx->fw_lock);
+
+        if (snd_soc_write(codec, 0x40, 0x5a6b) < 0)
+		dev_err(codec->dev, "Failed to write value 0x5a6b to addr 0x40\n");
+        if (snd_soc_write(codec, 0x59, 0x05cf) < 0)
+		dev_err(codec->dev, "Failed to write value 0x05cf to addr 0x59\n");
+        if (snd_soc_write(codec, 0x40, 0x0000) < 0)
+		dev_err(codec->dev, "Failed to write value 0x0000 to addr 0x40\n");
+        request_firmware_nowait(THIS_MODULE, FW_ACTION_HOTPLUG,
+                                   "tfa9890_boot.patch", codec->dev, GFP_KERNEL, tfa98xx, tfa98xx_container_loaded);
+
+	if (snd_soc_update_bits_locked(codec, TFA98XX_AUDIO_CTR,
+			TFA989X_AUDIO_CTR_BSSS_MSK, 0) < 0)
+		dev_err(codec->dev, "Failed to set Safeguard Threshold\n");
+
+	if (snd_soc_update_bits(codec, TFA98XX_BAT_PROT,
+			TFA989X_BAT_PROT_BSST_MSK, 32) < 0)
+		dev_err(codec->dev, "Failed to set Safeguard Threshold\n");
 
 	INIT_DELAYED_WORK(&tfa98xx->monitor_work, tfa98xx_monitor);
 	INIT_DELAYED_WORK(&tfa98xx->download_work, tfa98xx_download);
@@ -913,45 +947,6 @@ static int tfa98xx_remove(struct snd_soc_codec *codec)
 	return 0;
 }
 
-static int tfa98xx_reg_addr_get(struct snd_kcontrol *kcontrol,
-				struct snd_ctl_elem_value *ucontrol)
-{
-	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
-	struct tfa98xx_priv *tfa98xx = snd_soc_codec_get_drvdata(codec);
-
-	ucontrol->value.integer.value[0] = tfa98xx->reg_addr;
-	return 0;
-}
-
-static int tfa98xx_reg_addr_put(struct snd_kcontrol *kcontrol,
-				struct snd_ctl_elem_value *ucontrol)
-{
-	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
-	struct tfa98xx_priv *tfa98xx = snd_soc_codec_get_drvdata(codec);
-
-	tfa98xx->reg_addr = ucontrol->value.integer.value[0];
-	return 0;
-}
-
-static int tfa98xx_reg_value_get(struct snd_kcontrol *kcontrol,
-				 struct snd_ctl_elem_value *ucontrol)
-{
-	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
-	struct tfa98xx_priv *tfa98xx = snd_soc_codec_get_drvdata(codec);
-
-	ucontrol->value.integer.value[0] = snd_soc_read(codec, tfa98xx->reg_addr);
-	return 0;
-}
-
-static int tfa98xx_reg_value_put(struct snd_kcontrol *kcontrol,
-				 struct snd_ctl_elem_value *ucontrol)
-{
-	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
-	struct tfa98xx_priv *tfa98xx = snd_soc_codec_get_drvdata(codec);
-
-	return snd_soc_write(codec, tfa98xx->reg_addr, ucontrol->value.integer.value[0]);
-}
-
 static int tfa98xx_chsa_put(struct snd_kcontrol *kcontrol,
 			    struct snd_ctl_elem_value *ucontrol)
 {
@@ -965,47 +960,6 @@ static int tfa98xx_chsa_put(struct snd_kcontrol *kcontrol,
 		return ret;
 
 	return snd_soc_put_enum_double(kcontrol, ucontrol);
-}
-
-static int tfa98xx_bsst_get(struct snd_kcontrol *kcontrol,
-			    struct snd_ctl_elem_value *ucontrol)
-{
-	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
-	unsigned int bsss, bsst;
-
-	bsss   = snd_soc_read(codec, TFA98XX_AUDIO_CTR);
-	bsss  &= TFA989X_AUDIO_CTR_BSSS_MSK;
-	bsss >>= TFA989X_AUDIO_CTR_BSSS_POS;
-
-	bsst   = snd_soc_read(codec, TFA98XX_BAT_PROT);
-	bsst  &= TFA989X_BAT_PROT_BSST_MSK;
-	bsst >>= TFA989X_BAT_PROT_BSST_POS;
-
-	ucontrol->value.enumerated.item[0] = (bsst << 1) | bsss;
-	return 0;
-}
-
-static int tfa98xx_bsst_put(struct snd_kcontrol *kcontrol,
-			    struct snd_ctl_elem_value *ucontrol)
-{
-	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
-	unsigned int bsss = ucontrol->value.enumerated.item[0] & 1;
-	unsigned int bsst = ucontrol->value.enumerated.item[0] >> 1;
-	int ret;
-
-	ret = snd_soc_update_bits_locked(codec, TFA98XX_AUDIO_CTR,
-			TFA989X_AUDIO_CTR_BSSS_MSK,
-			bsss << TFA989X_AUDIO_CTR_BSSS_POS);
-	if (ret < 0)
-		return ret;
-
-	ret = snd_soc_update_bits(codec, TFA98XX_BAT_PROT,
-			TFA989X_BAT_PROT_BSST_MSK,
-			bsst << TFA989X_BAT_PROT_BSST_POS);
-	if (ret < 0)
-		return ret;
-
-	return ret;
 }
 
 static int tfa98xx_recalib_get(struct snd_kcontrol *kcontrol,
@@ -1031,34 +985,14 @@ static int tfa98xx_recalib_put(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
-static int tfa98xx_firmware_info(struct snd_kcontrol *kcontrol,
-				 struct snd_ctl_elem_info *uinfo)
+static int tfa98xx_firmware_put(struct tfa98xx_priv *tfa98xx, unsigned long id, const char *name)
 {
-	uinfo->type = SNDRV_CTL_ELEM_TYPE_BYTES;
-	uinfo->count = 512;
-	return 0;
-}
-
-static int tfa98xx_firmware_get(struct snd_kcontrol *kcontrol,
-				struct snd_ctl_elem_value *ucontrol)
-{
-	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
-	struct tfa98xx_priv *tfa98xx = snd_soc_codec_get_drvdata(codec);
-	unsigned long id = kcontrol->private_value;
-
-	strcpy(ucontrol->value.bytes.data, tfa98xx->fw_name[id]);
-	return 0;
-}
-
-static int tfa98xx_firmware_put(struct snd_kcontrol *kcontrol,
-				struct snd_ctl_elem_value *ucontrol)
-{
-	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
-	struct tfa98xx_priv *tfa98xx = snd_soc_codec_get_drvdata(codec);
-	unsigned long id = kcontrol->private_value;
-	const char *name = ucontrol->value.bytes.data;
+        struct snd_soc_codec *codec;
 	const struct firmware *fw;
 	int ret;
+
+        printk("tfa98xx_firmware_put id: %u name: %s\n", (unsigned int) id, name );
+        codec = tfa98xx->codec;
 
 	ret = request_firmware(&fw, name, codec->dev);
 	if (ret < 0) {
@@ -1083,16 +1017,6 @@ static int tfa98xx_firmware_put(struct snd_kcontrol *kcontrol,
 	release_firmware(fw);
 	return ret;
 }
-
-#define TFA98XX_FIRMWARE(xname, id) \
-	{ \
-		.iface = SNDRV_CTL_ELEM_IFACE_MIXER, \
-		.name = xname, \
-		.info = tfa98xx_firmware_info, \
-		.get = tfa98xx_firmware_get, \
-		.put = tfa98xx_firmware_put, \
-		.private_value = id, \
-	}
 
 static const char * const tfa98xx_chs12_text[] = {
 	"Left", "Right", "Mono",
@@ -1125,15 +1049,6 @@ static const char * const tfa98xx_i2sdoc_text[] = {
 static const SOC_ENUM_SINGLE_DECL(
 	tfa98xx_i2sdoc_enum, TFA98XX_I2SREG,
 	TFA9890_I2SREG_I2SDOC_POS, tfa98xx_i2sdoc_text);
-
-static const char * const tfa98xx_bsst_text[] = {
-	"2.73V", "2.99V", "2.83V", "3.09V", "2.93V", "3.19V", "3.03V", "3.29V",
-	"3.13V", "3.39V", "3.23V", "3.49V", "3.33V", "3.59V", "3.43V", "3.69V",
-	"3.53V", "3.79V", "3.63V", "3.89V", "3.73V", "3.99V", "3.83V", "4.09V",
-	"3.93V", "4.19V", "4.03V", "4.29V", "4.13V", "4.39V", "4.23V", "4.49V",
-};
-static const SOC_ENUM_SINGLE_EXT_DECL(
-	tfa98xx_bsst_enum, tfa98xx_bsst_text);
 
 static const DECLARE_TLV_DB_SCALE(
 	tfa98xx_vol_tlv, -12750, 50, 0);
@@ -1189,10 +1104,6 @@ static const SOC_ENUM_DOUBLE_DECL(
 	tfa98xx_dos_text);
 
 static const struct snd_kcontrol_new tfa98xx_controls[] = {
-	SOC_SINGLE_EXT("Reg Addr", SND_SOC_NOPM, 0, 0x8F, 0,
-		tfa98xx_reg_addr_get, tfa98xx_reg_addr_put),
-	SOC_SINGLE_EXT("Reg Value", SND_SOC_NOPM, 0, 0xFFFFFF, 0,
-		tfa98xx_reg_value_get, tfa98xx_reg_value_put),
 	SOC_SINGLE("Battery Voltage", TFA98XX_BATTERYVOLTAGE,
 		TFA98XX_BATTERYVOLTAGE_BATS_POS, TFA98XX_BATTERYVOLTAGE_BATS_MAX, 0),
 	SOC_SINGLE("Temperature", TFA98XX_TEMPERATURE,
@@ -1202,8 +1113,6 @@ static const struct snd_kcontrol_new tfa98xx_controls[] = {
 	SOC_ENUM_EXT("Amplifier Channel Mux", tfa98xx_chsa_enum,
 		snd_soc_get_enum_double, tfa98xx_chsa_put),
 	SOC_ENUM("Output Interface Mux", tfa98xx_i2sdoc_enum),
-	SOC_ENUM_EXT("Safeguard Threshold", tfa98xx_bsst_enum,
-		tfa98xx_bsst_get, tfa98xx_bsst_put),
 	SOC_SINGLE("Safeguard Bypass", TFA98XX_BAT_PROT,
 		TFA989X_BAT_PROT_BSSBY_POS, TFA989X_BAT_PROT_BSSBY_MAX, 0),
 	SOC_SINGLE_TLV("Digital Volume", TFA98XX_AUDIO_CTR,
@@ -1222,12 +1131,6 @@ static const struct snd_kcontrol_new tfa98xx_controls[] = {
 	SOC_ENUM("Output Channel Mux", tfa98xx_dos_enum),
 	SOC_SINGLE_BOOL_EXT("Recalibrate", 0,
 		tfa98xx_recalib_get, tfa98xx_recalib_put),
-	TFA98XX_FIRMWARE("Boot Patch", TFA98XX_FW_BOOT),
-	TFA98XX_FIRMWARE("ROM Patch", TFA98XX_FW_ROM),
-	TFA98XX_FIRMWARE("Speaker File", TFA98XX_FW_SPEAKER),
-	TFA98XX_FIRMWARE("Config File", TFA98XX_FW_CONFIG),
-	TFA98XX_FIRMWARE("Preset File", TFA98XX_FW_PRESET),
-	TFA98XX_FIRMWARE("Equalizer File", TFA98XX_FW_EQUALIZER),
 };
 
 static const struct snd_soc_dapm_route tfa98xx_routes[] = {
