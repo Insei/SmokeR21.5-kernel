@@ -4547,7 +4547,7 @@ static int mxt_initialize_input_device(struct mxt_data *data)
 			0, MT_TOOL_MAX, 0, 0);
 	}
 
-#ifndef CONFIG_TOUCHSCREEN_L4T
+#ifdef CONFIG_ANDROID
 	/* For T15 key array */
 	if (data->pdata->config_array[index].key_codes) {
 		for (i = 0; i < data->pdata->config_array[index].key_num; i++) {
