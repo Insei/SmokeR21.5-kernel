@@ -27,6 +27,7 @@
 #include <sound/initval.h>
 #include <sound/rt5670.h>
 #include <sound/tlv.h>
+#include <linux/of_gpio.h>
 
 #define RTK_IOCTL
 #ifdef RTK_IOCTL
@@ -4129,7 +4130,6 @@ static int rt5671_set_bias_level(struct snd_soc_codec *codec,
 
 static int rt5671_probe(struct snd_soc_codec *codec)
 {
-	struct rt5670_platform_data *pdata = dev_get_platdata(codec->dev);
 	struct rt5671_priv *rt5671 = snd_soc_codec_get_drvdata(codec);
 #ifdef RTK_IOCTL
 #if defined(CONFIG_SND_HWDEP) || defined(CONFIG_SND_HWDEP_MODULE)
@@ -4185,11 +4185,6 @@ static int rt5671_probe(struct snd_soc_codec *codec)
 
 	rt5671->codec = codec;
 	rt5671->combo_jack_en = true; /* enable combo jack */
-
-	if (pdata)
-		rt5671->pdata = *pdata;
-	else
-		pr_info("pdata = NULL\n");
 
 	if (rt5671->pdata.in2_diff)
 		snd_soc_update_bits(codec, RT5671_IN2,
@@ -4447,9 +4442,33 @@ static const struct i2c_device_id rt5671_i2c_id[] = {
 };
 MODULE_DEVICE_TABLE(i2c, rt5671_i2c_id);
 
+static int rt5671_parse_dt(struct rt5671_priv *rt5671, struct device_node *np)
+{
+	u32 val32[4];
+
+	of_property_read_u32(np, "realtek,jd_mode", &rt5671->pdata.jd_mode);
+
+	rt5671->pdata.codec_gpio = of_get_named_gpio(np, "realtek,codec_gpio", 0);
+	if (rt5671->pdata.codec_gpio < 0)
+		pr_err("Failed to get CODEC GPIO\n");
+
+	of_property_read_u32(np, "realtek,in2_diff", (unsigned int *) &rt5671->pdata.in2_diff);
+	of_property_read_u32(np, "realtek,in3_diff", (unsigned int *) &rt5671->pdata.in3_diff);
+	of_property_read_u32(np, "realtek,in4_diff", (unsigned int *) &rt5671->pdata.in4_diff);
+
+	of_property_read_u32_array(np, "realtek,bclk_32fs", val32, ARRAY_SIZE(val32));
+        rt5671->pdata.bclk_32fs[0] = val32[0];
+        rt5671->pdata.bclk_32fs[1] = val32[1];
+        rt5671->pdata.bclk_32fs[2] = val32[2];
+        rt5671->pdata.bclk_32fs[3] = val32[3];
+
+	return 0;
+}
+
 static int rt5671_i2c_probe(struct i2c_client *i2c,
 		    const struct i2c_device_id *id)
 {
+	struct rt5670_platform_data *pdata = dev_get_platdata(&i2c->dev);
 	struct rt5671_priv *rt5671;
 	int ret;
 
@@ -4459,6 +4478,11 @@ static int rt5671_i2c_probe(struct i2c_client *i2c,
 		return -ENOMEM;
 
 	i2c_set_clientdata(i2c, rt5671);
+
+	if (pdata)
+		rt5671->pdata = *pdata;
+	else
+		rt5671_parse_dt(rt5671, i2c->dev.of_node);
 
 	ret = snd_soc_register_codec(&i2c->dev, &soc_codec_dev_rt5671,
 			rt5671_dai, ARRAY_SIZE(rt5671_dai));
@@ -4485,10 +4509,16 @@ void rt5671_i2c_shutdown(struct i2c_client *client)
 		rt5671_set_bias_level(codec, SND_SOC_BIAS_OFF);
 }
 
+static const struct of_device_id rt5671_of_match[] = {
+	{ .compatible = "realtek,rt5671", },
+	{},
+};
+
 struct i2c_driver rt5671_i2c_driver = {
 	.driver = {
 		.name = "rt5671",
 		.owner = THIS_MODULE,
+		.of_match_table = rt5671_of_match,
 	},
 	.probe = rt5671_i2c_probe,
 	.remove   = rt5671_i2c_remove,

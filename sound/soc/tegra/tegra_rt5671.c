@@ -680,7 +680,7 @@ static int tegra_rt5671_driver_probe(struct platform_device *pdev)
 	struct tegra_asoc_platform_data *pdata = NULL;
 	int ret;
 	int codec_id;
-	u32 val32[7];
+	u32 val32[6];
 
 	if (!pdev->dev.platform_data && !pdev->dev.of_node) {
 		dev_err(&pdev->dev, "No platform data supplied\n");
@@ -712,15 +712,23 @@ static int tegra_rt5671_driver_probe(struct platform_device *pdev)
 		if (pdata->gpio_hp_det < 0)
 			dev_warn(&pdev->dev, "Failed to get HP Det GPIO\n");
 
+		pdata->gpio_hp_mute = of_get_named_gpio(np,
+						"nvidia,hp-mute-gpios", 0);
+		if (pdata->gpio_hp_mute < 0)
+			dev_warn(&pdev->dev, "Failed to get HP Mute GPIO\n");
+
 		pdata->gpio_codec1 = pdata->gpio_codec2 = pdata->gpio_codec3 =
-		pdata->gpio_spkr_en = pdata->gpio_hp_mute =
-		pdata->gpio_int_mic_en = pdata->gpio_ext_mic_en = -1;
+		pdata->gpio_spkr_en = pdata->gpio_int_mic_en = 
+                pdata->gpio_ext_mic_en = -1;
 
 		of_property_read_u32_array(np, "nvidia,i2s-param-hifi", val32,
 							   ARRAY_SIZE(val32));
 		pdata->i2s_param[HIFI_CODEC].audio_port_id = (int)val32[0];
 		pdata->i2s_param[HIFI_CODEC].is_i2s_master = (int)val32[1];
 		pdata->i2s_param[HIFI_CODEC].i2s_mode = (int)val32[2];
+		pdata->i2s_param[HIFI_CODEC].sample_size = (int)val32[3];
+		pdata->i2s_param[HIFI_CODEC].channels = (int)val32[4];
+		pdata->i2s_param[HIFI_CODEC].rate = (int)val32[5];
 	}
 
 	if (!pdata) {

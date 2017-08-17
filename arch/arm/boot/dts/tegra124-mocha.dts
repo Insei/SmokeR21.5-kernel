@@ -122,6 +122,18 @@
 			als_sensitive = <25>;
 		};
 
+		rt5671: rt5671@1c {
+			compatible = "realtek,rt5671";
+			reg = <0x1c>;
+
+	                realtek,jd_mode = <2>;
+	                realtek,codec_gpio = <&gpio 178 0>;
+	                realtek,in2_diff = <1>;
+	                realtek,in3_diff = <0>;
+	                realtek,in4_diff = <1>;
+	                realtek,bclk_32fs = <0 1 1 1>;
+		};
+
 		tfa9890l: tfa98xx@34 {
 			compatible = "nxp,tfa9890";
 			reg = <0x34>;
@@ -145,6 +157,12 @@
 			max-brightness = <100>;
 			max-duty = <50>;
 		};
+	};
+
+	sound {
+		compatible = "nvidia,tegra-audio-rt5671";
+		nvidia,hp-mute-gpios = <&gpio 185 0>;
+		nvidia,i2s-param-hifi = <0 0 2 16 2 48000>;
 	};
 };
 
