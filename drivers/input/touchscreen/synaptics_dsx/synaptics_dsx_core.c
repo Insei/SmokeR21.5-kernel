@@ -759,25 +759,23 @@ static int synaptics_rmi4_f11_abs_report(struct synaptics_rmi4_data *rmi4_data,
 			if (rmi4_data->hw_if->board_data->y_flip)
 				y = rmi4_data->sensor_max_y - y;
 
-                        if (!screen_is_off) {
-			        input_report_key(rmi4_data->input_dev,
+			input_report_key(rmi4_data->input_dev,
 				    	        BTN_TOUCH, 1);
-			        input_report_key(rmi4_data->input_dev,
+			input_report_key(rmi4_data->input_dev,
 					        BTN_TOOL_FINGER, 1);
-			        input_report_abs(rmi4_data->input_dev,
+			input_report_abs(rmi4_data->input_dev,
 					        ABS_MT_POSITION_X, x);
-			        input_report_abs(rmi4_data->input_dev,
+			input_report_abs(rmi4_data->input_dev,
 					        ABS_MT_POSITION_Y, y);
 #ifdef REPORT_2D_W
-			        input_report_abs(rmi4_data->input_dev,
+			input_report_abs(rmi4_data->input_dev,
 					        ABS_MT_TOUCH_MAJOR, max(wx, wy));
-			        input_report_abs(rmi4_data->input_dev,
+			input_report_abs(rmi4_data->input_dev,
 					        ABS_MT_TOUCH_MINOR, min(wx, wy));
 #endif
 #ifndef TYPE_B_PROTOCOL
-			        input_mt_sync(rmi4_data->input_dev);
+			input_mt_sync(rmi4_data->input_dev);
 #endif
-                        }
 
 			dev_dbg(rmi4_data->pdev->dev.parent,
 					"%s: Finger %d:\n"
@@ -794,7 +792,7 @@ static int synaptics_rmi4_f11_abs_report(struct synaptics_rmi4_data *rmi4_data,
 		}
 	}
 
-	if (touch_count == 0 && !screen_is_off) {
+	if (touch_count == 0) {
 		input_report_key(rmi4_data->input_dev,
 				BTN_TOUCH, 0);
 		input_report_key(rmi4_data->input_dev,
