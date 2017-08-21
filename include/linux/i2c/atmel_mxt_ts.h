@@ -49,8 +49,6 @@ struct mxt_config_info {
 	/* Points to the firmware name to be upgraded to */
 	const char *mxt_cfg_name;
 	const char *mxt_fw_name;
-	int *key_codes;
-	int key_num;
 };
 
 /* The platform data for the Atmel maXTouch touchscreen driver */
@@ -72,6 +70,8 @@ struct mxt_platform_data {
 	u16 vendor_info;
 	u16 product_info;
 	u16 version_info;
+	int *key_codes;
+	int key_num;
 };
 
 #endif /* __LINUX_ATMEL_MXT_TS_640T_H */
