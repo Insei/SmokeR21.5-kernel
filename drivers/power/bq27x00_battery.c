@@ -44,6 +44,7 @@
 #include <linux/switch.h>
 #include <linux/interrupt.h>
 #include <linux/power/battery-charger-gauge-comm.h>
+#include <linux/of_gpio.h>
 
 #include <linux/power/bq27x00_battery.h>
 #include <linux/mfd/palmas.h>
@@ -2180,10 +2181,9 @@ static ssize_t _update_firmware(struct device *dev, char *firmware_filename)
 	return error;
 }
 
-static int update_firmware(struct bq27x00_device_info *di)
+static int update_firmware(struct bq27x00_device_info *di, struct bq27x00_platform_data *pdata)
 {
 	struct i2c_client *client = to_i2c_client(di->dev);
-	struct bq27x00_platform_data *pdata = client->dev.platform_data;
 	unsigned long version;
 	int bat_id;
 	int type, error = 0;
@@ -2226,23 +2226,6 @@ static int update_firmware(struct bq27x00_device_info *di)
 	return error;
 }
 
-static ssize_t bq27x00_update_firmware(struct device *dev,
-		struct device_attribute *attr, const char *buf, size_t count)
-{
-	int val, version;
-	sscanf(buf, "%du", &val);
-
-	if (val == 1 && the_di) {
-		/* forced update */
-		version = the_di->df_ver;
-		the_di->df_ver = 0;
-		update_firmware(the_di);
-		the_di->df_ver = version;
-	}
-
-	return count;
-}
-
 static DEVICE_ATTR(dump_partial_data_flash, S_IRUGO,
 	show_dump_partial_data_flash, NULL);
 static DEVICE_ATTR(dump_data_flash, S_IRUGO, show_dump_data_flash, NULL);
@@ -2255,7 +2238,6 @@ static DEVICE_ATTR(qpassed_hires, S_IRUGO, show_hires_qpassed, NULL);
 static DEVICE_ATTR(battery_details, S_IRUGO, show_battery_details, NULL);
 static DEVICE_ATTR(debug_print_interval, S_IWUSR|S_IRUGO,
 		   show_debug_print_interval, set_debug_print_interval);
-static DEVICE_ATTR(update_fw, S_IWUSR|S_IRUSR , NULL, bq27x00_update_firmware);
 
 static struct attribute *bq27x00_attributes[] = {
 	&dev_attr_dump_partial_data_flash.attr,
@@ -2268,7 +2250,6 @@ static struct attribute *bq27x00_attributes[] = {
 	&dev_attr_qpassed_hires.attr,
 	&dev_attr_battery_details.attr,
 	&dev_attr_debug_print_interval.attr,
-	&dev_attr_update_fw.attr,
 	NULL
 };
 
@@ -2298,6 +2279,19 @@ static void bq27x00_reset_registers(struct bq27x00_device_info *di)
 	}
 }
 
+static void of_bq27x00_parse_platform_data(struct i2c_client *client,
+				struct bq27x00_platform_data *pdata)
+{
+	struct device_node *np = client->dev.of_node;
+
+	pdata->soc_int_irq = client->irq;
+
+	if (pdata->soc_int_irq)
+		pdata->bat_low_irq = -1;
+
+	of_property_read_string(np, "ti,fw-lgc-name", &pdata->fw_name[0]);
+	of_property_read_string(np, "ti,fw-atl-name", &pdata->fw_name[1]);
+}
 
 static int bq27x00_battery_probe(struct i2c_client *client,
 				 const struct i2c_device_id *id)
@@ -2306,7 +2300,17 @@ static int bq27x00_battery_probe(struct i2c_client *client,
 	struct bq27x00_device_info *di;
 	int num;
 	int retval = 0;
-	struct bq27x00_platform_data *pdata = client->dev.platform_data;
+	struct bq27x00_platform_data *pdata;
+
+	if (client->dev.of_node) {
+		pdata = devm_kzalloc(&client->dev,
+					sizeof(struct bq27x00_platform_data), GFP_KERNEL);
+		if (!pdata)
+			return -ENOMEM;
+		of_bq27x00_parse_platform_data(client, pdata);
+	} else {
+		pdata = client->dev.platform_data;
+	}
 
 	pr_info("%s: start\n", __func__);
 	/* Get new ID for the new battery device */
@@ -2398,7 +2402,7 @@ static int bq27x00_battery_probe(struct i2c_client *client,
 	}
 
 	/* Update firmware */
-	update_firmware(di);
+	update_firmware(di, pdata);
 
 	the_di = di;
 
@@ -2637,12 +2641,25 @@ static int __devexit bq27000_battery_remove(struct platform_device *pdev)
 	return 0;
 }
 
+static const struct i2c_device_id bq27520_id[] = {
+	{ "bq27520", 0 },
+	{ }
+};
+MODULE_DEVICE_TABLE(i2c, bq27520_id);
+
+static const struct of_device_id bq27520_dt_match[] = {
+	{ .compatible = "ti,bq27520" },
+	{ },
+};
+MODULE_DEVICE_TABLE(of, bq27520_dt_match);
+
 static struct platform_driver bq27000_battery_driver = {
 	.probe	= bq27000_battery_probe,
 	.remove = __devexit_p(bq27000_battery_remove),
 	.driver = {
 		.name = "bq27000-battery",
 		.owner = THIS_MODULE,
+		.of_match_table = of_match_ptr(bq27520_dt_match),
 	},
 };
 

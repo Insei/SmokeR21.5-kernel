@@ -28,6 +28,21 @@
 		linux,initrd-end = <0x851bc400>;
 	};
 
+	i2c@7000c400 {
+		status = "okay";
+		clock-frequency = <400000>;
+
+		bq27520@55 {
+			compatible = "ti,bq27520";
+			reg = <0x55>;
+
+			interrupt-parent = <&gpio>;
+			interrupts = <133 0>;
+			ti,fw-lgc-name = "bq27520g4_lgc.fw";
+			ti,fw-atl-name = "bq27520g4_atl.fw";
+		};
+	};
+
 	i2c@7000c700 {
 		nvidia,clock-always-on;
 		clock-frequency = <400000>;

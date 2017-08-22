@@ -123,6 +123,8 @@ fw-shipped-$(CONFIG_TOUCHSCREEN_ATMEL_MXT) += mxt1664t_config.fw \
 				              mxt1664t.fw 
 fw-shipped-$(CONFIG_TOUCHSCREEN_SYNAPTICS_DSX) += synaptics_7040_firmware.fw \
 				              synaptics_7040_test_data.fw
+fw-shipped-$(CONFIG_BATTERY_BQ27x00) += bq27520g4_atl.fw \
+				              bq27520g4_lgc.fw
 else
 fw-shipped- += keyspan/mpr.fw keyspan/usa18x.fw keyspan/usa19.fw	\
 	keyspan/usa19qi.fw keyspan/usa19qw.fw keyspan/usa19w.fw		\

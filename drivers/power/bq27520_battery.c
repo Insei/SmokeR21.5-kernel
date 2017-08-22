@@ -624,14 +624,6 @@ static int bq27520_resume(struct device *dev)
 
 static SIMPLE_DEV_PM_OPS(bq27520_pm_ops, bq27520_suspend, bq27520_resume);
 
-#ifdef CONFIG_OF
-static const struct of_device_id bq27520_dt_match[] = {
-	{ .compatible = "ti,bq27520" },
-	{ },
-};
-MODULE_DEVICE_TABLE(of, bq27520_dt_match);
-#endif
-
 static const struct i2c_device_id bq27520_id[] = {
 	{ "bq27520", 0 },
 	{ }
@@ -641,7 +633,6 @@ MODULE_DEVICE_TABLE(i2c, bq27520_id);
 static struct i2c_driver bq27520_i2c_driver = {
 	.driver	= {
 		.name	= "bq27520",
-		.of_match_table = of_match_ptr(bq27520_dt_match),
 		.pm = &bq27520_pm_ops,
 	},
 	.probe		= bq27520_probe,

@@ -95,10 +95,6 @@
 #include "tegra-board-id.h"
 #include "tegra-of-dev-auxdata.h"
 
-#include <linux/power/bq27x00_battery.h>
-
-#define BQ27520_INT_SUPPORT
-
 static struct board_info board_info, display_board_info;
 
 static __initdata struct tegra_clk_init_table ardbeg_clk_init_table[] = {
@@ -161,74 +157,6 @@ static struct i2c_board_info __initdata i2c_touchpad_board_info = {
 	.platform_data  = &i2c_touchpad_pdata,
 };
 
-#ifdef CONFIG_BATTERY_BQ27x00
-#define BQ27X00_LGC_FIRMWARE	"0105_lgc.dffs"
-#define BQ27X00_ATL_FIRMWARE	"0205_atl.dffs"
-
-static unsigned char bq27x00_lgc_config[] = {
-	#include "bq27520g4_lgc_0003.h"
-};
-
-static unsigned char bq27x00_atl_config[] = {
-	#include "bq27520g4_atl_0003.h"
-};
-
-DECLARE_BUILTIN_FIRMWARE_SIZE(BQ27X00_LGC_FIRMWARE,
-		bq27x00_lgc_config, sizeof(bq27x00_lgc_config) - 1);
-DECLARE_BUILTIN_FIRMWARE_SIZE(BQ27X00_ATL_FIRMWARE,
-		bq27x00_atl_config, sizeof(bq27x00_atl_config) - 1);
-
-/* Gas gauge board specific configuration filled in at board init */
-static struct bq27x00_platform_data bq27520_platform_data = {
-	.soc_int_irq = -1,
-	.bat_low_irq = -1,
-	.fw_name = {BQ27X00_LGC_FIRMWARE, BQ27X00_ATL_FIRMWARE},
-};
-
-static struct i2c_board_info __initdata bq27520_boardinfo[] = {
-	{
-		I2C_BOARD_INFO("bq27520", 0x55),
-		.platform_data = &bq27520_platform_data,
-	},
-};
-
-#ifdef BQ27520_INT_SUPPORT
-#define BQ27520_BATTERY_INT	TEGRA_GPIO_PQ5
-/* BQ27520 is on I2C1 with the PMIC; this init needs to happen before that bus is initialized. */
-static int __init ardbeg_bq27520_init(void)
-{
-	int soc_int_gpio, soc_int_irq;
-	int res;
-
-	soc_int_gpio = BQ27520_BATTERY_INT;
-
-	res = gpio_request(soc_int_gpio, "battery_int_n");
-	if (res) {
-		pr_err("%s: Failed to get soc_int gpio: %d\n", __func__, res);
-		goto error;
-	}
-
-	soc_int_irq = gpio_to_irq(soc_int_gpio);
-
-	res = irq_set_irq_wake(soc_int_irq, 1);
-	if (res) {
-		pr_err("%s: Failed to set irq wake for soc_int: %d\n", __func__, res);
-		goto error;
-	}
-
-	pr_warn("%s: soc_int_gpio=%d soc_int_irq=%d\n",
-			__func__, soc_int_gpio, soc_int_irq);
-
-	bq27520_platform_data.soc_int_irq = soc_int_irq;
-
-	return 0;
-
-error:
-	return res;
-}
-#endif
-#endif
-
 static void ardbeg_i2c_init(void)
 {
 	struct board_info board_info;
@@ -244,10 +172,6 @@ static void ardbeg_i2c_init(void)
 		i2c_touchpad_board_info.irq = gpio_to_irq(I2C_TP_IRQ);
 		i2c_register_board_info(1, &i2c_touchpad_board_info , 1);
 	}
-#ifdef BQ27520_INT_SUPPORT
-	ardbeg_bq27520_init();
-#endif
-	i2c_register_board_info(1, bq27520_boardinfo, ARRAY_SIZE(bq27520_boardinfo));
 }
 
 #ifndef CONFIG_USE_OF
