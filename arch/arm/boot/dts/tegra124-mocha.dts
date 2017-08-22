@@ -185,6 +185,33 @@
 			als_sensitive = <25>;
 		};
 
+		lp5521: lp55xx@32 {
+			compatible = "national,lp5521";
+			reg = <0x32>;
+			lp5521,clock-mode = <0>;
+			lp5521,gpio = <&gpio 55 0>;
+			lp5521,num-channels = <3>;
+
+			lp5521,config_1 {
+				lp5521,name = "red";
+				lp5521,chan-nr = <0>;
+				lp5521,led-current = <20>;
+				lp5521,max-current = <255>;
+			};
+			lp5521,config_2 {
+				lp5521,name = "green";
+				lp5521,chan-nr = <1>;
+				lp5521,led-current = <20>;
+				lp5521,max-current = <255>;
+			};
+			lp5521,config_3 {
+				lp5521,name = "blue";
+				lp5521,chan-nr = <2>;
+				lp5521,led-current = <20>;
+				lp5521,max-current = <255>;
+			};
+		};
+
 		rt5671: rt5671@1c {
 			compatible = "realtek,rt5671";
 			reg = <0x1c>;
@@ -206,6 +233,7 @@
 			compatible = "nxp,tfa9890";
 			reg = <0x37>;
 		};
+
 	};
 	
 	tegra_pwm: pwm@7000a000 {

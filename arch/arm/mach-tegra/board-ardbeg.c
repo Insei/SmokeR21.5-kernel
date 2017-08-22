@@ -95,69 +95,10 @@
 #include "tegra-of-dev-auxdata.h"
 
 #include <linux/power/bq27x00_battery.h>
-#include <linux/platform_data/leds-lp55xx.h>
 
 #define BQ27520_INT_SUPPORT
 
 static struct board_info board_info, display_board_info;
-
-#ifdef CONFIG_LEDS_LP5521
-#define LP5521_CHIP_EN_GPIO        TEGRA_GPIO_PG7
-static struct lp55xx_led_config lp5521_led_config[] = {
-	{
-		.name           = "red",
-		.chan_nr        = 0,
-		.led_current    = 20,
-		.max_current	= 255,
- 	},
-	{
-		.name           = "green",
-		.chan_nr        = 1,
-		.led_current    = 20,
-		.max_current	= 255,
- 	},
-	{
-		.name           = "blue",
-		.chan_nr        = 2,
-		.led_current    = 20,
-		.max_current	= 255,
-	}
- };
-
-static int lp5521_setup(void)
-{
-	return gpio_request_one(LP5521_CHIP_EN_GPIO, GPIOF_DIR_OUT,
-			"lp5521_enable");
-}
-
-static void lp5521_release(void)
-{
-	gpio_free(LP5521_CHIP_EN_GPIO);
-}
-
-static void lp5521_enable(bool state)
-{
-	gpio_set_value(LP5521_CHIP_EN_GPIO, !!state);
-}
-
-static struct lp55xx_platform_data lp5521_platform_data = {
-	.led_config             = lp5521_led_config,
-	.num_channels           = ARRAY_SIZE(lp5521_led_config),
-	.clock_mode             = LP55XX_CLOCK_AUTO,
-	.setup_resources        = lp5521_setup,
-	.release_resources      = lp5521_release,
-	.enable                 = lp5521_enable,
-};
-#endif
-
-static struct i2c_board_info __initdata i2c_led_board_info[] = {
-#ifdef CONFIG_LEDS_LP5521
-	{
-		I2C_BOARD_INFO("lp5521", 0x32),
-		.platform_data = &lp5521_platform_data,
-	},
-#endif
- };
 
 static struct rt5670_platform_data rt5671_pdata = {
 	.jd_mode = 2,
@@ -326,7 +267,6 @@ static void ardbeg_i2c_init(void)
 		i2c_touchpad_board_info.irq = gpio_to_irq(I2C_TP_IRQ);
 		i2c_register_board_info(1, &i2c_touchpad_board_info , 1);
 	}
-	i2c_register_board_info(0, i2c_led_board_info, ARRAY_SIZE(i2c_led_board_info));
 #ifdef BQ27520_INT_SUPPORT
 	ardbeg_bq27520_init();
 #endif
