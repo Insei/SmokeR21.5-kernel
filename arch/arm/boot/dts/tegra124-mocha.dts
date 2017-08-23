@@ -200,7 +200,7 @@
 			als_sensitive = <25>;
 		};
 
-		lp5521: lp55xx@32 {
+		lp5521@32 {
 			compatible = "national,lp5521";
 			reg = <0x32>;
 			lp5521,clock-mode = <0>;
@@ -227,7 +227,7 @@
 			};
 		};
 
-		rt5671: rt5671@1c {
+		rt5671@1c {
 			compatible = "realtek,rt5671";
 			reg = <0x1c>;
 
@@ -239,12 +239,12 @@
 	                realtek,bclk_32fs = <0 1 1 1>;
 		};
 
-		tfa9890l: tfa98xx@34 {
+		tfa9890@34 {
 			compatible = "nxp,tfa9890";
 			reg = <0x34>;
 		};
 
-		tfa9890r: tfa98xx@37 {
+		tfa9890@37 {
 			compatible = "nxp,tfa9890";
 			reg = <0x37>;
 		};
