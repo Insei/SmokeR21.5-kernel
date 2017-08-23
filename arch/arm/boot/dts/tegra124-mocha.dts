@@ -38,8 +38,8 @@
 
 			interrupt-parent = <&gpio>;
 			interrupts = <133 0>;
-			ti,fw-lgc-name = "bq27520g4_lgc.fw";
-			ti,fw-atl-name = "bq27520g4_atl.fw";
+			ti,fw-lgc-name = "0105_lgc.dffs";
+			ti,fw-atl-name = "0205_atl.dffs";
 		};
 	};
 
