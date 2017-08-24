@@ -949,7 +949,7 @@ static void __init tegra_ardbeg_late_init(void)
 
 	if (board_info.board_id == BOARD_E2548 ||
 			board_info.board_id == BOARD_P2530)
-		loki_pinmux_init();
+		tegra_disp_defer_vcore_override();
 #ifndef CONFIG_MACH_EXUMA
 	ardbeg_display_init();
 #endif
@@ -1000,7 +1000,7 @@ static void __init tegra_ardbeg_late_init(void)
 			board_info.board_id == BOARD_P2530)
 		loki_panel_init();
 	else
-		ardbeg_panel_init();
+		tegra_fb_copy_or_clear();
 
 		/* put PEX pads into DPD mode to save additional power */
 		tegra_io_dpd_enable(&pexbias_io);
