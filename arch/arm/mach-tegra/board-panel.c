@@ -31,7 +31,7 @@
 #include "board-panel.h"
 #include "board.h"
 #include "iomap.h"
-#include <linux/platform/tegra/dvfs.h>
+#include "dvfs.h"
 
 #define HDMI_NODE	"/host1x/hdmi"
 
