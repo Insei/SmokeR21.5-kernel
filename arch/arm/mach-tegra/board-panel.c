@@ -352,13 +352,6 @@ struct device_node *tegra_primary_panel_get_dt_node(
 			tegra_panel_register_ops(dc_out,
 				&dsi_a_1080p_14_0_ops);
 		break;
-	case BOARD_E2129:
-		np_panel = of_find_compatible_node(NULL,
-			NULL, "j,1440-810-5-8");
-		if (np_panel && pdata && dc_out)
-			tegra_panel_register_ops(dc_out,
-				&dsi_j_1440_810_5_8_ops);
-		break;
 	case BOARD_E1937:
 		if (display_board.sku == 1100)
 			is_dsi_a_1200_800_8_0 = true;
