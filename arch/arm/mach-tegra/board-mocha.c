@@ -95,6 +95,7 @@
 #include "pm.h"
 #include "tegra-board-id.h"
 #include "tegra-of-dev-auxdata.h"
+#include <linux/nvmap.h>
 
 static struct board_info board_info, display_board_info;
 
@@ -999,8 +1000,9 @@ static void __init tegra_ardbeg_late_init(void)
 	if (board_info.board_id == BOARD_E2548 ||
 			board_info.board_id == BOARD_P2530)
 		loki_panel_init();
-	else
-		tegra_fb_copy_or_clear();
+		
+	nvmap_init();
+	tegra_fb_copy_or_clear();
 
 		/* put PEX pads into DPD mode to save additional power */
 		tegra_io_dpd_enable(&pexbias_io);
