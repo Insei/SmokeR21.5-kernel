@@ -51,7 +51,7 @@
 					nvidia,out-parent-clk = "pll_d_out0";
 					nvidia,out-xres = <1536>;
 					nvidia,out-yres = <2048>;
-					nvidia,out-flags = <TEGRA_DC_OUT_INITIALIZED_MODE>;
+					nvidia,out-flags = <TEGRA_DC_OUT_CONTINUOUS_MODE TEGRA_DC_OUT_INITIALIZED_MODE>;
 				};
 				display-timings {
 					1536x2048-32 {
