@@ -360,6 +360,12 @@ struct device_node *tegra_primary_panel_get_dt_node(
 		else
 			is_dsi_a_1200_1920_8_0 = true;
 		break;
+	case BOARD_E32824:
+		np_panel = of_find_compatible_node(NULL, NULL, "s,wqxga-7-9-x6");
+		if (np_panel && pdata && dc_out)
+			tegra_panel_register_ops(dc_out,
+				&dsi_s_wqxga_7_9_x6_ops);
+		break;
 	case BOARD_E1807:
 		is_dsi_a_1200_800_8_0 = true;
 		break;

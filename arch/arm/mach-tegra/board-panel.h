@@ -74,6 +74,7 @@ extern struct tegra_panel_ops edp_a_1080p_14_0_ops;
 extern struct tegra_panel_ops edp_i_1080p_11_6_ops;
 extern struct tegra_panel_ops lvds_c_1366_14_ops;
 extern struct tegra_panel_ops dsi_a_1080p_14_0_ops;
+extern struct tegra_panel_ops dsi_s_wqxga_7_9_x6_ops;
 
 extern struct tegra_panel_ops *fixed_primary_panel_ops;
 extern struct tegra_panel_ops *fixed_secondary_panel_ops;

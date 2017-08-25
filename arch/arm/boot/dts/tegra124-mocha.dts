@@ -13,6 +13,7 @@
 
 #include "tegra124-platforms/tegra124-mocha-sysedp.dtsi"
 #include "tegra124-platforms/tegra124-mocha-camera.dtsi"
+#include "panel-s-wqxga-7-9-x6.dtsi"
 
 / {
 	model = "NVIDIA Tegra124 TN8";
@@ -26,6 +27,23 @@
 		bootargs = "tegraid=40.0.0.00.00 vmalloc=256M video=tegrafb console=ttyS0,115200n8 earlyprintk";
 		linux,initrd-start = <0x85000000>;
 		linux,initrd-end = <0x851bc400>;
+	};
+
+	host1x {
+		/* tegradc.0 */
+		dc@54200000 {
+			status = "okay";
+			nvidia,dc-flags = <TEGRA_DC_FLAG_ENABLED>;
+			nvidia,emc-clk-rate = <204000000>;
+			nvidia,cmu-enable = <0>;
+			nvidia,low-v-win = <0x2>;
+			nvidia,fb-bpp = <32>; /* bits per pixel */
+			nvidia,fb-flags = <TEGRA_FB_FLIP_ON_PROBE>;
+		};
+		dsi {
+			nvidia,dsi-controller-vs = <DSI_VS_1>;
+			status = "okay";
+		};
 	};
 
 	i2c@7000c400 {
