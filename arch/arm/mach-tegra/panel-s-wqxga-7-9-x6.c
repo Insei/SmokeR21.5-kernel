@@ -129,6 +129,8 @@ static int dsi_s_wqxga_7_9_enable(struct device *dev)
 	}
 
 #if DSI_PANEL_RESET
+	pr_err("panel: gpio value %d\n", gpio_get_value(en_panel_rst));
+	if (gpio_get_value(en_panel_rst) == 0) {
 		pr_info("panel: %s\n", __func__);
 		gpio_direction_output(en_panel_rst, 1);
 		usleep_range(1000, 3000);
@@ -136,6 +138,7 @@ static int dsi_s_wqxga_7_9_enable(struct device *dev)
 		usleep_range(1000, 3000);
 		gpio_set_value(en_panel_rst, 1);
 		msleep(32);
+	}
 #endif
 	return 0;
 }
