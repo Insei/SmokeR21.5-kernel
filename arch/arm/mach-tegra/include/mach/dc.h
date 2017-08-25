@@ -349,6 +349,7 @@ struct tegra_dsi_out {
 	u8		video_clock_mode;
 	u8		video_burst_mode;
 	u8		ganged_type;
+	bool	ganged_write_to_all_links;
 	u8		left_right_align;
 	u8		even_odd_align;
 

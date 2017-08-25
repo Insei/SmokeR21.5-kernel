@@ -447,7 +447,10 @@ static int __maybe_unused tegra_dsi_syncpt
 
 	val = DSI_INCR_SYNCPT_COND(OP_DONE) |
 		DSI_INCR_SYNCPT_INDX(dsi->syncpt_id);
-	tegra_dsi_controller_writel(dsi, val, DSI_INCR_SYNCPT, link_id);
+	if (dsi->info.ganged_type && dsi->info.ganged_write_to_all_links)
+		tegra_dsi_writel(dsi, val, DSI_INCR_SYNCPT);
+	else
+		tegra_dsi_controller_writel(dsi, val, DSI_INCR_SYNCPT, link_id);
 
 	ret = nvhost_syncpt_wait_timeout_ext(dsi->dc->ndev, dsi->syncpt_id,
 		dsi->syncpt_val + 1, (u32)MAX_SCHEDULE_TIMEOUT, NULL, NULL);
@@ -2960,8 +2963,8 @@ fail:
 	return status;
 }
 
-static int _tegra_dsi_write_data(struct tegra_dc_dsi_data *dsi,
-					struct tegra_dsi_cmd *cmd)
+static int _tegra_dsi_controller_write_data(struct tegra_dc_dsi_data *dsi,
+					struct tegra_dsi_cmd *cmd, int link_id)
 {
 	u8 virtual_channel;
 	u32 val;
@@ -2972,7 +2975,7 @@ static int _tegra_dsi_write_data(struct tegra_dc_dsi_data *dsi,
 
 	err = 0;
 
-	if (!dsi->info.ganged_type && cmd->link_id == TEGRA_DSI_LINK1) {
+	if (!dsi->info.ganged_type && link_id == TEGRA_DSI_LINK1) {
 		dev_err(&dsi->dc->ndev->dev, "DSI invalid command\n");
 		return -EINVAL;
 	}
@@ -2983,7 +2986,7 @@ static int _tegra_dsi_write_data(struct tegra_dc_dsi_data *dsi,
 	/* always use hw for ecc */
 	val = (virtual_channel | data_id) << 0 |
 			data_len << 8;
-	tegra_dsi_controller_writel(dsi, val, DSI_WR_DATA, cmd->link_id);
+	tegra_dsi_controller_writel(dsi, val, DSI_WR_DATA, link_id);
 
 	/* if pdata != NULL, pkt type is long pkt */
 	if (pdata != NULL) {
@@ -2999,18 +3002,36 @@ static int _tegra_dsi_write_data(struct tegra_dc_dsi_data *dsi,
 				data_len = 0;
 			}
 			tegra_dsi_controller_writel(dsi, val,
-				DSI_WR_DATA, cmd->link_id);
+				DSI_WR_DATA, link_id);
 		}
 	}
 
 	if (cmd->cmd_type != TEGRA_DSI_PACKET_VIDEO_VBLANK_CMD) {
-		err = tegra_dsi_host_trigger(dsi, cmd->link_id);
+		err = tegra_dsi_host_trigger(dsi, link_id);
 		if (err < 0)
 			dev_err(&dsi->dc->ndev->dev, "DSI host trigger failed\n");
 	}
 
 	return err;
 }
+
+static int _tegra_dsi_write_data(struct tegra_dc_dsi_data *dsi,
+					struct tegra_dsi_cmd *cmd)
+{
+	int i, err = 0;
+
+	if (dsi->info.ganged_type && dsi->info.ganged_write_to_all_links)
+		for (i = 0; i < dsi->max_instances; i++) {
+			err = _tegra_dsi_controller_write_data(dsi, cmd, i);
+			if (err)
+				break;
+		}
+	else
+		err = _tegra_dsi_controller_write_data(dsi, cmd, cmd->link_id);
+
+	return err;
+}
+
 
 static void tegra_dc_dsi_hold_host(struct tegra_dc *dc)
 {
@@ -3392,7 +3413,10 @@ static int tegra_dsi_bta(struct tegra_dc_dsi_data *dsi)
 
 	val = tegra_dsi_readl(dsi, DSI_HOST_DSI_CONTROL);
 	val |= DSI_HOST_DSI_CONTROL_IMM_BTA(TEGRA_DSI_ENABLE);
-	tegra_dsi_controller_writel(dsi, val,
+	if (dsi->info.ganged_type && dsi->info.ganged_write_to_all_links)
+		tegra_dsi_writel(dsi, val, DSI_HOST_DSI_CONTROL);
+	else
+		tegra_dsi_controller_writel(dsi, val,
 				DSI_HOST_DSI_CONTROL, TEGRA_DSI_LINK0);
 
 	if (!tegra_cpu_is_asim() && DSI_USE_SYNC_POINTS) {
