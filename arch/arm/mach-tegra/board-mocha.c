@@ -949,9 +949,9 @@ static void __init tegra_ardbeg_late_init(void)
 
 	if (board_info.board_id == BOARD_E2548 ||
 			board_info.board_id == BOARD_P2530)
-		tegra_disp_defer_vcore_override();
+		loki_pinmux_init();
 #ifndef CONFIG_MACH_EXUMA
-	ardbeg_display_init();
+	tegra_disp_defer_vcore_override();
 #endif
 	ardbeg_uart_init();
 	ardbeg_usb_init();
