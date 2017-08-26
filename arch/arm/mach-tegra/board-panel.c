@@ -302,6 +302,14 @@ static void tegra_panel_register_ops(struct tegra_dc_out *dc_out,
 	dc_out->hotplug_report = p_ops->hotplug_report;
 }
 
+u8 x6_panel_id = 0;
+static int __init setup_panel_id(char *str)
+{
+	x6_panel_id = simple_strtoul(str, NULL, 0);
+	return 1;
+}
+__setup("panel_id=", setup_panel_id);
+
 struct device_node *tegra_primary_panel_get_dt_node(
 			struct tegra_dc_platform_data *pdata)
 {
@@ -315,6 +323,8 @@ struct device_node *tegra_primary_panel_get_dt_node(
 	bool is_dsi_a_1200_800_8_0 = false;
 	bool is_edp_i_1080p_11_6 = false;
 	bool is_edp_a_1080p_14_0 = false;
+	bool is_dsi_s_wqxga_7_9_x6 = false;
+	bool is_dsi_a_wqxga_7_9_x6 = false;
 
 	tegra_get_display_board_info(&display_board);
 
@@ -361,10 +371,10 @@ struct device_node *tegra_primary_panel_get_dt_node(
 			is_dsi_a_1200_1920_8_0 = true;
 		break;
 	case BOARD_E32824:
-		np_panel = of_find_compatible_node(NULL, NULL, "s,wqxga-7-9-x6");
-		if (np_panel && pdata && dc_out)
-			tegra_panel_register_ops(dc_out,
-				&dsi_s_wqxga_7_9_x6_ops);
+		if ((x6_panel_id & 0xF0) == 0x20)
+			is_dsi_s_wqxga_7_9_x6 = true;
+		else if ((x6_panel_id & 0xF0) == 0x10)
+			is_dsi_a_wqxga_7_9_x6 = true;
 		break;
 	case BOARD_E1807:
 		is_dsi_a_1200_800_8_0 = true;
@@ -424,6 +434,18 @@ struct device_node *tegra_primary_panel_get_dt_node(
 		if (np_panel && pdata && dc_out)
 			tegra_panel_register_ops(dc_out,
 				&edp_a_1080p_14_0_ops);
+	}
+	if (is_dsi_s_wqxga_7_9_x6) {
+		np_panel = of_find_compatible_node(NULL, NULL, "s,wqxga-7-9-x6");
+		if (np_panel && pdata && dc_out) {
+			tegra_panel_register_ops(dc_out,
+				&dsi_s_wqxga_7_9_x6_ops);
+			pr_err("s,wqxga-7-9-x6 found\n");
+		}
+	}
+	if (is_dsi_a_wqxga_7_9_x6) {
+		pr_err("a,wqxga-7-9-x6 found. Sorry, but it's not available. FIX ME!!!\n");
+		np_panel = NULL;
 	}
 	if (np_panel && of_device_is_available(np_panel))
 		return np_panel;
