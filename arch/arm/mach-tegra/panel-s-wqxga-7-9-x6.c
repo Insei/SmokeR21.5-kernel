@@ -34,10 +34,6 @@
 #include "gpio-names.h"
 #include "tegra11_host1x_devices.h"
 
-#ifdef CONFIG_STATE_NOTIFIER
-#include <linux/state_notifier.h>
-#endif
-
 #define TEGRA_DSI_GANGED_MODE	1
 
 #define DSI_PANEL_RESET		1
@@ -93,10 +89,6 @@ static int dsi_s_wqxga_7_9_enable(struct device *dev)
 		pr_err("dsi regulator get failed\n");
 	}
 
-#ifdef CONFIG_STATE_NOTIFIER
-	state_resume();
-#endif
-
 	err = tegra_panel_gpio_get_dt("s,wqxga-7-9-x6", &panel_of);
 	if (err < 0) {
 		pr_err("dsi gpio request failed\n");
@@ -151,10 +143,6 @@ static int dsi_s_wqxga_7_9_disable(void)
 	if (err < 0) {
 		pr_err("dsi gpio request failed\n");
 	}
-
-#ifdef CONFIG_STATE_NOTIFIER
-	state_suspend();
-#endif 
 
 	/* If panel rst gpio is specified in device tree,
 	 * use that.
