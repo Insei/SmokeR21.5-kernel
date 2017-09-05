@@ -33,7 +33,7 @@
 #include <linux/input/mt.h>
 #endif
 #include <asm/bootinfo.h>
-#include <linux/fb.h>
+#include <linux/input/dt2w.h>
 
 #define INPUT_PHYS_NAME "synaptics_dsx/touch_input"
 
@@ -123,6 +123,8 @@ static ssize_t synaptics_rmi4_wake_gesture_show(struct device *dev,
   
 static ssize_t synaptics_rmi4_wake_gesture_store(struct device *dev,
   		struct device_attribute *attr, const char *buf, size_t count);
+
+struct notifier_block fb_notif_syn;
 
 struct synaptics_rmi4_f01_device_status {
 	union {
@@ -589,76 +591,6 @@ static int synaptics_rmi4_proc_init()
 	return ret;
 }
 
-static struct notifier_block fb_notif;
-static bool screen_is_off;
-
-static int fb_notifier_callback(struct notifier_block *this, unsigned long event, void *data)
-{
- 	struct fb_event *evdata = data;
-  	int *blank;
-  
-  	if (evdata && evdata->data && event == FB_EVENT_BLANK) {
-  		blank = evdata->data;
-  		switch (*blank) {
-  			case FB_BLANK_UNBLANK:
-  				//display on
-                                 screen_is_off = false;
-  				break;
-  			case FB_BLANK_POWERDOWN:
-  			case FB_BLANK_HSYNC_SUSPEND:
-  			case FB_BLANK_VSYNC_SUSPEND:
-  			case FB_BLANK_NORMAL:
-  				//display off
-                                 screen_is_off = true;
-  				break;
-  		}
-         }
- 
- 	return NOTIFY_OK;
-}
-
-static unsigned long long tap_time_pre = 0;
-static int x_pre = 0;
-static int y_pre = 0;
-static int touch_nr = 0;
-
-#define DT2W_MIN_TIME_BETWEEN_TOUCHES    20
-#define DT2W_MAX_TIME_BETWEEN_TOUCHES    200
-#define DT2W_SECOND_TOUCH_RADIUS         60
-
-/* Calculate the scatter between touches */
-static unsigned int calc_feather(int coord, int prev_coord)
-{
-	int calc_coord = 0;
-
-	calc_coord = coord - prev_coord;
-	if (calc_coord < 0)
-		return -calc_coord;
-
-	return calc_coord;
-}
-
-/* Reset gesture data */
-static void doubletap2wake_reset(void)
-{
-	touch_nr = 0;
-	tap_time_pre = 0;
-
-	x_pre = 0;
-	y_pre = 0;
-}
-
-/* Record a new touch */
-static void new_touch(int x, int y)
-{
-	tap_time_pre = jiffies;
-
-	x_pre = x;
-	y_pre = y;
-
-	++touch_nr;
-}
-
  /**
  * synaptics_rmi4_f11_abs_report()
  *
@@ -686,8 +618,8 @@ static int synaptics_rmi4_f11_abs_report(struct synaptics_rmi4_data *rmi4_data,
 	unsigned char data[F11_STD_DATA_LEN];
 	unsigned short data_addr;
 	unsigned short data_offset;
-	int x;
-	int y;
+	int x = 0;
+	int y = 0;
 	int wx;
 	int wy;
 	int temp;
@@ -802,31 +734,12 @@ static int synaptics_rmi4_f11_abs_report(struct synaptics_rmi4_data *rmi4_data,
 #endif
 	}
 
-        if (touch_count == 0 && screen_is_off && rmi4_data->wakeup_enable) {
-                switch (touch_nr) {
-                        case 0: {
-                                new_touch(x, y);
-                                break;
-                        }
-                        case 1: {
-			        if ((calc_feather(x, x_pre) < DT2W_SECOND_TOUCH_RADIUS) &&
-			            (calc_feather(y, y_pre) < DT2W_SECOND_TOUCH_RADIUS) &&
-			           ((jiffies - tap_time_pre) < DT2W_MAX_TIME_BETWEEN_TOUCHES) &&
-			           ((jiffies - tap_time_pre) > DT2W_MIN_TIME_BETWEEN_TOUCHES)) {
-			                dev_err(rmi4_data->pdev->dev.parent, "double click gesture triggerred !\nwakeup the tablet!\n");
-	                                input_event(rmi4_data->input_dev, EV_KEY, KEY_POWER, 1);
-	                                input_sync(rmi4_data->input_dev);
-	                                input_event(rmi4_data->input_dev, EV_KEY, KEY_POWER, 0);
-	                                input_sync(rmi4_data->input_dev);
-		                        doubletap2wake_reset();
-			        } else {
-				        doubletap2wake_reset();
-				        new_touch(x, y);
-			        }
-                                break;
-                        }
-                }
-        }
+	if (touch_count == 0 && detect_dt2w_event(x, y) && rmi4_data->wakeup_enable) {
+		input_event(rmi4_data->input_dev, EV_KEY, KEY_POWER, 1);
+		input_sync(rmi4_data->input_dev);
+		input_event(rmi4_data->input_dev, EV_KEY, KEY_POWER, 0);
+		input_sync(rmi4_data->input_dev);
+	}
 
 	input_sync(rmi4_data->input_dev);
 
@@ -2835,6 +2748,11 @@ static int synaptics_rmi4_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	}
 
+	if (fb_notifier_register(&fb_notif_syn))
+		pr_err("%s: failed to register fb notifier\n", __func__);
+	else
+		pr_err("%s: fb notifier registered\n", __func__);
+
 	if (bdata->regulator_name != NULL) {
 		rmi4_data->regulator = regulator_get(&pdev->dev,
 				bdata->regulator_name);
@@ -2986,6 +2904,10 @@ err_set_gpio:
 
 err_regulator:
 	kfree(rmi4_data);
+
+        fb_notifier_unregister(&fb_notif_syn);
+	pr_err("%s: fb notifier unregistered\n", __func__);
+
 	return retval;
 }
 
@@ -3215,7 +3137,6 @@ static int synaptics_rmi4_suspend(struct device *dev)
 
 	if (rmi4_data->wakeup_enable &&
 			device_may_wakeup(&rmi4_data->pdev->dev)) {
-                doubletap2wake_reset();
 		dev_info(rmi4_data->pdev->dev.parent, "touch enable irq wake\n");
 		enable_irq_wake(rmi4_data->irq);
                 return 0;
@@ -3332,12 +3253,6 @@ static int __init synaptics_rmi4_init(void)
 {
 	int retval;
 
-        fb_notif.notifier_call = fb_notifier_callback;
-  	if (fb_register_client(&fb_notif) != 0)
-  		pr_err("%s: failed to register fb callback\n", __func__);
-        else
-  		pr_err("%s: fb callback registered\n", __func__);
-
 	retval = synaptics_rmi4_bus_init();
 	if (retval != 0) {
 		pr_err("Failed to do bus init!\n");
@@ -3359,8 +3274,6 @@ static int __init synaptics_rmi4_init(void)
  */
 static void __exit synaptics_rmi4_exit(void)
 {
-        fb_unregister_client(&fb_notif);
-
 	platform_driver_unregister(&synaptics_rmi4_driver);
 
 	synaptics_rmi4_bus_exit();

@@ -28,9 +28,9 @@
 #include <linux/gpio.h>
 #include <linux/string.h>
 #include <linux/wait.h>
-#include <linux/fb.h>
 #include <linux/of_gpio.h>
-#include <linux/of_irq.h>
+#include <linux/input/dt2w.h>
+#include <linux/fb.h>
 
 /* Version */
 #define MXT_VER_20		20
@@ -469,6 +469,8 @@
 #define MXT_MAX_FINGER_NUM	10
 #define BOOTLOADER_1664_1188	1
 
+struct notifier_block fb_notif_atm;
+
 struct mxt_info {
 	u8 family_id;
 	u8 variant_id;
@@ -617,7 +619,6 @@ struct mxt_data {
 	u8 T109_reportid;
 	u16 T38_address;
 	u16 T71_address;
-        bool mxt_1066t;
 };
 
 static struct mxt_suspend mxt_save[] = {
@@ -648,34 +649,6 @@ static const struct mxt_i2c_address_pair mxt_i2c_addresses[] = {
 	{ 0x35, 0x5b },
 #endif
 };
-
-static struct notifier_block fb_notif;
-static bool screen_is_off;
-
-static int fb_notifier_callback(struct notifier_block *this, unsigned long event, void *data)
-{
- 	struct fb_event *evdata = data;
-  	int *blank;
-  
-  	if (evdata && evdata->data && event == FB_EVENT_BLANK) {
-  		blank = evdata->data;
-  		switch (*blank) {
-  			case FB_BLANK_UNBLANK:
-  				//display on
-                                 screen_is_off = false;
-  				break;
-  			case FB_BLANK_POWERDOWN:
-  			case FB_BLANK_HSYNC_SUSPEND:
-  			case FB_BLANK_VSYNC_SUSPEND:
-  			case FB_BLANK_NORMAL:
-  				//display off
-                                 screen_is_off = true;
-  				break;
-  		}
-         }
- 
- 	return NOTIFY_OK;
-}
 
 static int mxt_bootloader_read(struct mxt_data *data, u8 *val, unsigned int count)
 {
@@ -1261,6 +1234,13 @@ static void mxt_proc_t9_messages(struct mxt_data *data, u8 *message)
 		/* Touch no longer in detect, so close out slot */
 		mxt_input_sync(data);
 		input_mt_report_slot_state(input_dev, MT_TOOL_FINGER, 0);
+
+		if (detect_dt2w_event(x, y) && data->wakeup_gesture_mode) {
+			input_event(input_dev, EV_KEY, KEY_POWER, 1);
+			input_sync(input_dev);
+			input_event(input_dev, EV_KEY, KEY_POWER, 0);
+			input_sync(input_dev);
+		}
 	}
 }
 
@@ -1291,48 +1271,6 @@ static int mxt_do_diagnostic(struct mxt_data *data, u8 mode)
 	}
 
 	return -ETIMEDOUT;
-}
-
-static unsigned long long tap_time_pre = 0;
-static int x_pre = 0;
-static int y_pre = 0;
-static int touch_nr = 0;
-
-#define DT2W_MIN_TIME_BETWEEN_TOUCHES    20
-#define DT2W_MAX_TIME_BETWEEN_TOUCHES    200
-#define DT2W_SECOND_TOUCH_RADIUS         60
-
-/* Calculate the scatter between touches */
-static unsigned int calc_feather(int coord, int prev_coord)
-{
-	int calc_coord = 0;
-
-	calc_coord = coord - prev_coord;
-	if (calc_coord < 0)
-		return -calc_coord;
-
-	return calc_coord;
-}
-
-/* Reset gesture data */
-static void doubletap2wake_reset(void)
-{
-	touch_nr = 0;
-	tap_time_pre = 0;
-
-	x_pre = 0;
-	y_pre = 0;
-}
-
-/* Record a new touch */
-static void new_touch(int x, int y)
-{
-	tap_time_pre = jiffies;
-
-	x_pre = x;
-	y_pre = y;
-
-	++touch_nr;
 }
 
 static void mxt_proc_t100_messages(struct mxt_data *data, u8 *message)
@@ -1420,32 +1358,12 @@ static void mxt_proc_t100_messages(struct mxt_data *data, u8 *message)
 			mxt_input_sync(data);
 			input_mt_report_slot_state(input_dev, MT_TOOL_FINGER, 0);
 
-                        if (screen_is_off && data->mxt_1066t) {
-                                switch (touch_nr) {
-                                        case 0: {
-                                                new_touch(x, y);
-                                                break;
-                                        }
-                                        case 1: {
-			                        if ((calc_feather(x, x_pre) < DT2W_SECOND_TOUCH_RADIUS) &&
-			                            (calc_feather(y, y_pre) < DT2W_SECOND_TOUCH_RADIUS) &&
-			                           ((jiffies - tap_time_pre) < DT2W_MAX_TIME_BETWEEN_TOUCHES) &&
-			                           ((jiffies - tap_time_pre) > DT2W_MIN_TIME_BETWEEN_TOUCHES)) {
-			                                dev_err(dev, "double click gesture triggerred !\n"
-                                                                     "wakeup the tablet!\n");
-	                                                input_event(input_dev, EV_KEY, KEY_POWER, 1);
-	                                                input_sync(input_dev);
-	                                                input_event(input_dev, EV_KEY, KEY_POWER, 0);
-	                                                input_sync(input_dev);
-		                                        doubletap2wake_reset();
-			                         } else {
-				                        doubletap2wake_reset();
-				                        new_touch(x, y);
-			                         }
-                                                 break;
-                                        }
-                                }
-                        }
+			if (detect_dt2w_event(x, y) && data->wakeup_gesture_mode) {
+				input_event(input_dev, EV_KEY, KEY_POWER, 1);
+				input_sync(input_dev);
+				input_event(input_dev, EV_KEY, KEY_POWER, 0);
+				input_sync(input_dev);
+			}
 		}
 	}
 }
@@ -1605,16 +1523,16 @@ static void mxt_proc_t66_messages(struct mxt_data *data, u8 *msg)
 
 static void mxt_proc_t93_message(struct mxt_data *data, u8 *msg)
 {
-	struct device *dev = &data->client->dev;
+/*	struct device *dev = &data->client->dev;
 	struct input_dev *input_dev = data->input_dev;
 
-	if (screen_is_off) {
+	if (data->suspended) {
 		dev_info(dev, "t93 double click gesture triggerred !\nwakeup the tablet!\n");
 		input_event(input_dev, EV_KEY, KEY_POWER, 1);
 		input_sync(input_dev);
 		input_event(input_dev, EV_KEY, KEY_POWER, 0);
 		input_sync(input_dev);
-	}
+	}*/
 }
 
 static void mxt_proc_t109_messages(struct mxt_data *data, u8 *msg)
@@ -2223,10 +2141,7 @@ static const char *mxt_get_config(struct mxt_data *data)
 		if (data->info.family_id == pdata->config_array[i].family_id &&
 			data->info.variant_id == pdata->config_array[i].variant_id) {
 			dev_info(dev, "select config %d, config name = %s\n", i, pdata->config_array[i].mxt_cfg_name);
-                        if (i == 1)
-                                data->mxt_1066t = true;
-                        else
-                                data->mxt_1066t = false;
+
 			return  pdata->config_array[i].mxt_cfg_name;
 		}
 	}
@@ -4451,6 +4366,11 @@ static int mxt_probe(struct i2c_client *client,
 		return -ENOMEM;
 	}
 
+	if (fb_notifier_register(&fb_notif_atm))
+		pr_err("%s: failed to register fb notifier\n", __func__);
+	else
+		pr_err("%s: fb notifier registered\n", __func__);
+
 	data->state = INIT;
 
 	data->client = client;
@@ -4633,6 +4553,10 @@ err_reset_gpio_req:
 		gpio_free(pdata->reset_gpio);
 err_free_data:
 	kfree(data);
+
+	fb_notifier_unregister(&fb_notif_atm);
+	pr_err("%s: fb notifier unregistered\n", __func__);
+
 	return error;
 }
 
@@ -4740,18 +4664,11 @@ static struct i2c_driver mxt_driver = {
 
 static int __init mxt_init(void)
 {
-        fb_notif.notifier_call = fb_notifier_callback;
-  	if (fb_register_client(&fb_notif) != 0)
-  		pr_err("%s: failed to register fb callback\n", __func__);
-        else
-  		pr_err("%s: fb callback registered\n", __func__);
-
 	return i2c_add_driver(&mxt_driver);
 }
 
 static void __exit mxt_exit(void)
 {
-        fb_unregister_client(&fb_notif);
 	i2c_del_driver(&mxt_driver);
 }
 
