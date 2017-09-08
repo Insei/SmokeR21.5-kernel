@@ -555,6 +555,7 @@ struct mxt_data {
 	u8 t100_tchaux_bits;
 	unsigned long keystatus;
 	u8 vendor_id;
+	int current_index;
 	u8 update_flag;
 	u8 test_result[6];
 	int touch_num;
@@ -1377,6 +1378,7 @@ static void mxt_proc_t15_messages(struct mxt_data *data, u8 *msg)
 	bool curr_state, new_state;
 	bool sync = false;
 	unsigned long keystates = le32_to_cpu(msg[2]);
+	int index = data->current_index;
 
 	if (!input_dev || data->driver_paused)
 		return;
@@ -1386,19 +1388,19 @@ static void mxt_proc_t15_messages(struct mxt_data *data, u8 *msg)
                 return;
         }
 
-	for (key = 0; key < pdata->key_num; key++) {
+	for (key = 0; key < pdata->config_array[index].key_num; key++) {
 		curr_state = test_bit(key, &data->keystatus);
 		new_state = test_bit(key, &keystates);
 
 		if (!curr_state && new_state) {
 			dev_dbg(dev, "T15 key press: %u\n", key);
 			__set_bit(key, &data->keystatus);
-			input_event(input_dev, EV_KEY, pdata->key_codes[key], 1);
+			input_event(input_dev, EV_KEY, pdata->config_array[index].key_codes[key], 1);
 			sync = true;
 		} else if (curr_state && !new_state) {
 			dev_dbg(dev, "T15 key release: %u\n", key);
 			__clear_bit(key, &data->keystatus);
-			input_event(input_dev, EV_KEY,  pdata->key_codes[key], 0);
+			input_event(input_dev, EV_KEY,  pdata->config_array[index].key_codes[key], 0);
 			sync = true;
 		}
 	}
@@ -2141,6 +2143,7 @@ static const char *mxt_get_config(struct mxt_data *data)
 		if (data->info.family_id == pdata->config_array[i].family_id &&
 			data->info.variant_id == pdata->config_array[i].variant_id) {
 			dev_info(dev, "select config %d, config name = %s\n", i, pdata->config_array[i].mxt_cfg_name);
+			data->current_index = i;
 
 			return  pdata->config_array[i].mxt_cfg_name;
 		}
@@ -3956,14 +3959,15 @@ static void mxt_input_close(struct input_dev *dev)
 static void mxt_clear_touch_event(struct mxt_data *data)
 {
 	struct input_dev *input_dev = data->input_dev;
+	int index = data->current_index;
 	int id, i;
 
 	for (id = 0; id < data->num_touchids - 2; id++) {
 		input_mt_slot(input_dev, id);
 		input_mt_report_slot_state(input_dev, MT_TOOL_FINGER, false);
 	}
-	for (i = 0; i < data->pdata->key_num; i++)
-		clear_bit(data->pdata->key_codes[i], input_dev->key);
+	for (i = 0; i < data->pdata->config_array[index].key_num; i++)
+		clear_bit(data->pdata->config_array[index].key_codes[i], input_dev->key);
 
 	input_sync(input_dev);
 }
@@ -4084,6 +4088,7 @@ static int mxt_initialize_input_device(struct mxt_data *data)
 	struct input_dev *input_dev;
 	int ret;
 	int i;
+	int index = data->current_index;
 
 	/* Initialize input device */
 	input_dev = input_allocate_device();
@@ -4154,11 +4159,11 @@ static int mxt_initialize_input_device(struct mxt_data *data)
 
 #ifdef CONFIG_ANDROID
 	/* For T15 key array */
-	if (data->pdata->key_codes) {
-		for (i = 0; i < data->pdata->key_num; i++) {
-			if (data->pdata->key_codes[i])
+	if (data->pdata->config_array[index].key_codes) {
+		for (i = 0; i < data->pdata->config_array[index].key_num; i++) {
+			if (data->pdata->config_array[index].key_codes[i])
 				input_set_capability(input_dev, EV_KEY,
-							data->pdata->key_codes[i]);
+							data->pdata->config_array[index].key_codes[i]);
 		}
 	}
 #endif
@@ -4299,22 +4304,6 @@ static int mxt_parse_dt(struct device *dev, struct mxt_platform_data *pdata)
 	of_property_read_u32(np, "atmel,product-info", (unsigned int *) &pdata->product_info);
 	of_property_read_u32(np, "atmel,config-array-size", (unsigned int *) &pdata->config_array_size);
 
-	prop = of_find_property(np, "atmel,key-codes", NULL);
-	if (prop) {
-		pdata->key_num = prop->length / sizeof(u32);
-		pdata->key_codes = devm_kzalloc(dev,
-				sizeof(int) * pdata->key_num,
-				GFP_KERNEL);
-		if (!pdata->key_codes)
-			return -ENOMEM;
-		ret = of_property_read_u32_array(np, "atmel,key-codes",
-				pdata->key_codes, pdata->key_num);
-		if (ret) {
-			dev_err(dev, "Unable to read key codes\n");
-			return ret;
-		}
-	}
-
 	info = devm_kzalloc(dev, pdata->config_array_size *
 				sizeof(struct mxt_config_info), GFP_KERNEL);
 
@@ -4329,6 +4318,22 @@ static int mxt_parse_dt(struct device *dev, struct mxt_platform_data *pdata)
 		of_property_read_string(temp, "atmel,mxt-cfg-name", &info->mxt_cfg_name);
 		of_property_read_u32(temp, "atmel,vendor-id", (unsigned int *) &info->vendor_id);
 		of_property_read_string(temp, "atmel,mxt-fw-name", &info->mxt_fw_name);
+
+		prop = of_find_property(temp, "atmel,key-codes", NULL);
+		if (prop) {
+			info->key_num = prop->length / sizeof(u32);
+			info->key_codes = devm_kzalloc(dev,
+					sizeof(int) * info->key_num,
+					GFP_KERNEL);
+			if (!info->key_codes)
+				return -ENOMEM;
+			ret = of_property_read_u32_array(temp, "atmel,key-codes",
+					info->key_codes, info->key_num);
+			if (ret) {
+				dev_err(dev, "Unable to read key codes\n");
+				return ret;
+			}
+		}
 
 		info++;
 	}
