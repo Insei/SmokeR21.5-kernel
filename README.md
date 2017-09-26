@@ -4,6 +4,11 @@
 You need to flash tos.img in order for all 4 cores to work otherwise only one core will work!
 Disable ADF in the config if you want use this kernel with old blobs, without it kernel works only with blobs from Nexus 9.
 
+# For LineageOS 14.1 compile:
+Device tree: https://github.com/arttttt/android_device_xiaomi_mocha/tree/cm-14.1
+
+Vendor: https://github.com/arttttt/android_vendor_xiaomi_mocha/tree/cm-14.1-nexus9
+
 =========================================================================
 * Works:
 	* LCD panel
