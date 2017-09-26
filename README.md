@@ -31,9 +31,13 @@ Vendor: https://github.com/arttttt/android_vendor_xiaomi_mocha/tree/cm-14.1-nexu
 =========================================================================
 # BUILD
 export ARCH=arm
+
 export CROSS_COMPILE=arm-linux-gnueabihf-
+
 make mocha_android_defconfig(for Android) OR mocha_defconfig(for Ubuntu)
+
 make -j4 zImage
+
 make tegra124-mocha.dtb
 
 # Busses
